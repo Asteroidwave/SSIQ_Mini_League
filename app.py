@@ -6,9 +6,8 @@ import plotly.express as px
 import plotly.graph_objects as go
 from git import Repo  # pip install GitPython
 
-
 # ---------------- Global Settings ----------------
-# Set to False when you want to push updates to GitHub.
+# Set to False when you want to push updates to GitHub automatically.
 TEST_MODE = False
 
 # Global dictionary for initial balances
@@ -27,84 +26,68 @@ st.set_page_config(page_title="Mini League", page_icon=":horse_racing:", layout=
 # ---------------- Custom CSS ----------------
 custom_css = """
 <style>
-/* Background & Font */
-body {
-  background: linear-gradient(135deg, #f0f2f6, #ffffff);
-  font-family: 'Arial', sans-serif;
-  color: #333;
+/* Default (light mode) styling */
+.custom-table {
+    border-collapse: collapse;
+    width: auto; /* columns auto-size to content */
+    margin-bottom: 1rem;
+    background-color: #ffffff;
+    color: #333;
+}
+.custom-table th, .custom-table td {
+    border: 1px solid #ccc;
+    padding: 8px;
+    text-align: center;
+    white-space: nowrap;
+}
+.custom-table th {
+    background-color: #eaeaea;
+}
+.subtotal-row {
+    background-color: #fff8c6;
+    font-weight: bold;
+}
+.date-header {
+    text-align: left;
+    font-weight: bold;
+    padding: 4px;
 }
 
-/* Headers */
-h1, h2, h3, h4 {
-  color: #2C3E50;
+/* Dark mode overrides */
+@media (prefers-color-scheme: dark) {
+  .custom-table {
+      background-color: #333333;
+      color: #ddd;
+      border: 1px solid #555;
+  }
+  .custom-table th, .custom-table td {
+      border: 1px solid #555;
+  }
+  .custom-table th {
+      background-color: #444444;
+  }
+  .subtotal-row {
+      background-color: #555555;
+      font-weight: bold;
+  }
+  .date-header {
+      background-color: #222222;
+      color: #ffffff;
+  }
 }
 
 /* Buttons */
 div.stButton > button {
-  background-color: #2C3E50 !important;
-  color: #ffffff !important;
-  border-radius: 8px !important;
-  padding: 0.6em 1em !important;
-  border: none !important;
-  cursor: pointer !important;
-  font-weight: 600 !important;
+    background-color: #2C3E50 !important;
+    color: #ffffff !important;
+    border-radius: 8px !important;
+    border: none !important;
+    padding: 0.6em 1em !important;
+    font-weight: 600 !important;
+    cursor: pointer !important;
 }
 div.stButton > button:hover {
-  background-color: #34495E !important;
-}
-
-/* Custom Table Styling */
-.custom-table {
-  border-collapse: collapse;
-  width: auto;
-  margin-bottom: 1rem;
-  background-color: #ffffff;
-  color: #333;
-}
-.custom-table th, .custom-table td {
-  border: 1px solid #ccc;
-  padding: 8px;
-  text-align: center;
-  white-space: nowrap;
-}
-.custom-table th {
-  background-color: #eaeaea;
-}
-.subtotal-row {
-  background-color: #fff8c6;
-  font-weight: bold;
-}
-.date-header {
-  text-align: left;
-  font-weight: bold;
-  padding: 4px;
-}
-
-/* Dark Mode Overrides */
-@media (prefers-color-scheme: dark) {
-  body {
-    background: linear-gradient(135deg, #1a1a1a, #333);
-    color: #ccc;
-  }
-  .custom-table {
-    background-color: #333;
-    color: #ddd;
-    border: 1px solid #555;
-  }
-  .custom-table th, .custom-table td {
-    border: 1px solid #555;
-  }
-  .custom-table th {
-    background-color: #444;
-  }
-  .subtotal-row {
-    background-color: #555;
-    font-weight: bold;
-  }
-  .date-header {
-    background-color: #222;
-    color: #fff;
-  }
+    background-color: #34495E !important;
 }
 </style>
 """
@@ -116,7 +99,7 @@ st.markdown(custom_css, unsafe_allow_html=True)
 def load_data():
     """
     Load contest data from the CSV file.
-    If the file is missing or empty, create a new DataFrame with columns: Date, Track, plus one column for each player.
+    If the file is missing or empty, create a new DataFrame with columns: Date, Track, plus one column per player.
     Also ensure that all current players have columns.
     """
     if os.path.exists(DATA_FILE) and os.path.getsize(DATA_FILE) > 0:
@@ -124,6 +107,7 @@ def load_data():
     else:
         cols = ["Date", "Track"] + st.session_state.players
         df = pd.DataFrame(columns=cols)
+    # Ensure each current player has a column.
     for p in st.session_state.players:
         if p not in df.columns:
             df[p] = 0
@@ -140,6 +124,7 @@ def save_data(df):
         st.info("Test mode enabled: Skipping GitHub commit and push.")
         return
     try:
+        # Ensure we're in the repository root
         repo = Repo('.')  # Assumes your project folder is a git repository.
         repo.git.add(DATA_FILE)
         repo.index.commit("Update contest data")
@@ -161,9 +146,9 @@ def calculate_result(participants, winner):
     """
     Given a list of participants and the selected winner,
     compute contest outcomes for all players:
-      - If 2 entrants: winner gets +40 and the other gets -40.
-      - If 3 entrants: winner gets +80 and others get -40.
-      - Others (not in the contest) remain 0.
+      - For 2 entrants: winner gets +40, other gets -40.
+      - For 3 entrants: winner gets +80, others get -40.
+      - Players not in the contest remain 0.
     """
     result = {p: 0 for p in st.session_state.players}
     if len(participants) == 2:
@@ -203,15 +188,15 @@ def format_money(val):
 
 def format_date_long(d):
     """
-    Format a date as 'Feb 4' (for example).
+    Format a date (datetime or Timestamp) as 'Feb 4' (for example).
     """
     return d.strftime("%b %-d")
 
 
 def build_contest_html_table(date_dt, day_df):
     """
-    Build an HTML table for a given date and contests (day_df).
-    The table has columns: Track, then one column per player.
+    Build an HTML table for a given date and its contests (day_df).
+    The table has columns: Track, followed by one column per player.
     The last row shows "Sub-Total" with each player's daily sum.
     """
     date_str = format_date_long(date_dt)
@@ -247,13 +232,13 @@ def build_contest_html_table(date_dt, day_df):
 
 def home_page():
     st.title("Welcome to the Mini League")
-    st.markdown("<h3 style='color: lightblue;'>Let the Racing Begin!</h3>", unsafe_allow_html=True)
+    st.markdown("<h3 style='color: darkblue;'>Let the Racing Begin!</h3>", unsafe_allow_html=True)
 
     current_date = datetime.date.today().strftime("%Y-%m-%d")
     st.markdown(f"<div style='text-align: right; font-size: 18px;'><b>Date:</b> {current_date}</div>",
                 unsafe_allow_html=True)
 
-    # Current Balances
+    # Show current balances.
     df = load_data()
     balances = compute_balances(df)
     st.subheader("Current Balances")
