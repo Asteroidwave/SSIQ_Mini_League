@@ -26,68 +26,84 @@ st.set_page_config(page_title="Mini League", page_icon=":horse_racing:", layout=
 # ---------------- Custom CSS ----------------
 custom_css = """
 <style>
-/* Default (light mode) styling */
-.custom-table {
-    border-collapse: collapse;
-    width: auto; /* columns auto-size to content */
-    margin-bottom: 1rem;
-    background-color: #ffffff;
-    color: #333;
-}
-.custom-table th, .custom-table td {
-    border: 1px solid #ccc;
-    padding: 8px;
-    text-align: center;
-    white-space: nowrap;
-}
-.custom-table th {
-    background-color: #eaeaea;
-}
-.subtotal-row {
-    background-color: #fff8c6;
-    font-weight: bold;
-}
-.date-header {
-    text-align: left;
-    font-weight: bold;
-    padding: 4px;
+/* Background & Font */
+body {
+  background: linear-gradient(135deg, #f0f2f6, #ffffff);
+  font-family: 'Arial', sans-serif;
+  color: #333;
 }
 
-/* Dark mode overrides */
-@media (prefers-color-scheme: dark) {
-  .custom-table {
-      background-color: #333333;
-      color: #ddd;
-      border: 1px solid #555;
-  }
-  .custom-table th, .custom-table td {
-      border: 1px solid #555;
-  }
-  .custom-table th {
-      background-color: #444444;
-  }
-  .subtotal-row {
-      background-color: #555555;
-      font-weight: bold;
-  }
-  .date-header {
-      background-color: #222222;
-      color: #ffffff;
-  }
+/* Headers */
+h1, h2, h3, h4 {
+  color: #2C3E50;
 }
 
 /* Buttons */
 div.stButton > button {
-    background-color: #2C3E50 !important;
-    color: #ffffff !important;
-    border-radius: 8px !important;
-    border: none !important;
-    padding: 0.6em 1em !important;
-    font-weight: 600 !important;
-    cursor: pointer !important;
+  background-color: #2C3E50 !important;
+  color: #ffffff !important;
+  border-radius: 8px !important;
+  padding: 0.6em 1em !important;
+  border: none !important;
+  cursor: pointer !important;
+  font-weight: 600 !important;
 }
 div.stButton > button:hover {
-    background-color: #34495E !important;
+  background-color: #34495E !important;
+}
+
+/* Custom Table Styling */
+.custom-table {
+  border-collapse: collapse;
+  width: auto;
+  margin-bottom: 1rem;
+  background-color: #ffffff;
+  color: #333;
+}
+.custom-table th, .custom-table td {
+  border: 1px solid #ccc;
+  padding: 8px;
+  text-align: center;
+  white-space: nowrap;
+}
+.custom-table th {
+  background-color: #eaeaea;
+}
+.subtotal-row {
+  background-color: #fff8c6;
+  font-weight: bold;
+}
+.date-header {
+  text-align: left;
+  font-weight: bold;
+  padding: 4px;
+}
+
+/* Dark Mode Overrides */
+@media (prefers-color-scheme: dark) {
+  body {
+    background: linear-gradient(135deg, #1a1a1a, #333);
+    color: #ccc;
+  }
+  .custom-table {
+    background-color: #333;
+    color: #ddd;
+    border: 1px solid #555;
+  }
+  .custom-table th, .custom-table td {
+    border: 1px solid #555;
+  }
+  .custom-table th {
+    background-color: #444;
+  }
+  .subtotal-row {
+    background-color: #555;
+    font-weight: bold;
+  }
+  .date-header {
+    background-color: #222;
+    color: #fff;
+  }
 }
 </style>
 """
@@ -230,7 +246,7 @@ def build_contest_html_table(date_dt, day_df):
 
 def home_page():
     st.title("Welcome to the Mini League")
-    st.markdown("<h3 style='color: darkblue;'>Let the Racing Begin!</h3>", unsafe_allow_html=True)
+    st.markdown("<h3 style='color: lightblue;'>Let the Racing Begin!</h3>", unsafe_allow_html=True)
 
     current_date = datetime.date.today().strftime("%Y-%m-%d")
     st.markdown(f"<div style='text-align: right; font-size: 18px;'><b>Date:</b> {current_date}</div>",
