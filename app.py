@@ -7,19 +7,17 @@ import plotly.graph_objects as go
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
-# ---------------- Debug: Print Working Directory ----------------
-st.write("Current working directory:", os.getcwd())
+# Set page config as the very first command
+st.set_page_config(page_title="Mini League", page_icon=":horse_racing:", layout="wide")
+
+# Optional: Debug working directory
+#st.write("Current working directory:", os.getcwd())
 
 # ---------------- Global Settings ----------------
-# Global dictionary for initial balances
 initial_balances = {"Hans": 0, "Rich": 80, "Ralls": -80}
 
-# Store players in session_state so that new players are recognized immediately.
 if 'players' not in st.session_state:
     st.session_state.players = list(initial_balances.keys())
-
-# Set page config (title, icon, layout)
-st.set_page_config(page_title="Mini League", page_icon=":horse_racing:", layout="wide")
 
 # ---------------- Custom CSS ----------------
 custom_css = """
@@ -27,7 +25,7 @@ custom_css = """
 /* Default (light mode) styling */
 .custom-table {
     border-collapse: collapse;
-    width: auto; /* columns auto-size to content */
+    width: auto;
     margin-bottom: 1rem;
     background-color: #ffffff;
     color: #333;
@@ -74,7 +72,7 @@ custom_css = """
   }
 }
 
-/* Buttons */
+/* Buttons styling */
 div.stButton > button {
     background-color: #2C3E50 !important;
     color: #ffffff !important;
@@ -83,6 +81,7 @@ div.stButton > button {
     padding: 0.6em 1em !important;
     font-weight: 600 !important;
     cursor: pointer !important;
+    margin-bottom: 0.5em;
 }
 div.stButton > button:hover {
     background-color: #34495E !important;
@@ -94,7 +93,6 @@ st.markdown(custom_css, unsafe_allow_html=True)
 
 # ---------------- Google Sheets Helper Functions ----------------
 def get_gsheets_client():
-    """Authorize and return a gspread client using the local credentials.json file."""
     scope = ["https://spreadsheets.google.com/feeds",
              "https://www.googleapis.com/auth/spreadsheets",
              "https://www.googleapis.com/auth/drive.file",
@@ -105,10 +103,6 @@ def get_gsheets_client():
 
 
 def load_data():
-    """
-    Load contest data from the Google Sheet "MiniLeagueData".
-    If the sheet is empty or an error occurs, return an empty DataFrame with columns: Date, Track, plus one column per player.
-    """
     client = get_gsheets_client()
     try:
         sheet = client.open("MiniLeagueData").sheet1
@@ -123,7 +117,6 @@ def load_data():
     header = data[0]
     rows = data[1:]
     df = pd.DataFrame(rows, columns=header)
-    # Convert player columns to numeric
     for p in st.session_state.players:
         if p in df.columns:
             df[p] = pd.to_numeric(df[p], errors='coerce').fillna(0)
@@ -135,16 +128,12 @@ def load_data():
 
 
 def save_data(df):
-    """
-    Save the DataFrame to the Google Sheet "MiniLeagueData".
-    """
     client = get_gsheets_client()
     try:
         sheet = client.open("MiniLeagueData").sheet1
     except Exception as e:
         st.error("Error opening Google Sheet: " + str(e))
         return
-    # Convert DataFrame to a list of lists (all values as strings)
     data = [df.columns.tolist()] + df.astype(str).values.tolist()
     sheet.clear()
     sheet.update("A1", data)
@@ -218,18 +207,17 @@ def build_contest_html_table(date_dt, day_df):
     return html
 
 
-# ---------------- Navigation ----------------
-# Create clickable sidebar buttons for navigation.
-if 'current_page' not in st.session_state:
+# ---------------- Navigation (Vertical Sidebar Buttons) ----------------
+st.sidebar.title("Navigation")
+if st.sidebar.button("Home"):
     st.session_state.current_page = "Home"
-
-col1, col2, col3 = st.sidebar.columns(3)
-if col1.button("Home"):
-    st.session_state.current_page = "Home"
-if col2.button("Statistics"):
+if st.sidebar.button("Statistics"):
     st.session_state.current_page = "Statistics"
-if col3.button("Data Entry"):
+if st.sidebar.button("Data Entry"):
     st.session_state.current_page = "Data Entry"
+
+if "current_page" not in st.session_state:
+    st.session_state.current_page = "Home"
 
 
 # ---------------- Page Functions ----------------
