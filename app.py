@@ -5,6 +5,9 @@ import os
 import plotly.express as px
 import plotly.graph_objects as go
 from git import Repo  # pip install GitPython
+from git import Repo
+repo = Repo('.')
+st.write("Repository root:", repo.git.rev_parse("--show-toplevel"))
 
 # ---------------- Global Settings ----------------
 # Set to False when you want to push updates to GitHub.
