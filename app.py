@@ -7,7 +7,7 @@ import plotly.graph_objects as go
 from git import Repo  # pip install GitPython
 
 # ---------------- Global Settings ----------------
-# Set to False when you want to push updates to GitHub automatically.
+# Set to False to enable Git push. (Streamlit Cloud users won't have local Git.)
 TEST_MODE = False
 
 # Global dictionary for initial balances
@@ -107,16 +107,16 @@ def load_data():
     else:
         cols = ["Date", "Track"] + st.session_state.players
         df = pd.DataFrame(columns=cols)
-    # Ensure each current player has a column.
     for p in st.session_state.players:
         if p not in df.columns:
             df[p] = 0
     return df
 
 
-def save_data(df):
+def save_data(df, commit_message=None):
     """
     Save the DataFrame to CSV and, if TEST_MODE is False, commit & push the update to GitHub.
+    The commit message can be passed in (e.g., the contest date).
     """
     df.to_csv(DATA_FILE, index=False)
     st.success("Data saved locally!")
@@ -124,10 +124,11 @@ def save_data(df):
         st.info("Test mode enabled: Skipping GitHub commit and push.")
         return
     try:
-        # Ensure we're in the repository root
         repo = Repo('.')  # Assumes your project folder is a git repository.
         repo.git.add(DATA_FILE)
-        repo.index.commit("Update contest data")
+        if commit_message is None:
+            commit_message = "Update contest data"
+        repo.index.commit(commit_message)
         origin = repo.remote(name='origin')
         origin.push()
         st.success("Data pushed to GitHub!")
@@ -196,7 +197,7 @@ def format_date_long(d):
 def build_contest_html_table(date_dt, day_df):
     """
     Build an HTML table for a given date and its contests (day_df).
-    The table has columns: Track, followed by one column per player.
+    The table has columns: Track, then one column per player.
     The last row shows "Sub-Total" with each player's daily sum.
     """
     date_str = format_date_long(date_dt)
@@ -238,7 +239,7 @@ def home_page():
     st.markdown(f"<div style='text-align: right; font-size: 18px;'><b>Date:</b> {current_date}</div>",
                 unsafe_allow_html=True)
 
-    # Show current balances.
+    # Current Balances
     df = load_data()
     balances = compute_balances(df)
     st.subheader("Current Balances")
@@ -459,7 +460,7 @@ def data_entry_page():
             df = load_data()
             if new_player not in df.columns:
                 df[new_player] = 0
-                save_data(df)
+                save_data(df, commit_message=f"Add new player: {new_player}")
             st.experimental_rerun()
         else:
             st.error("Invalid name or player already exists.")
@@ -507,7 +508,9 @@ def data_entry_page():
                 new_entry[p] = result.get(p, 0)
             df = load_data()
             df = pd.concat([df, pd.DataFrame([new_entry])], ignore_index=True)
-            save_data(df)
+            # Use the contest date as the commit message.
+            commit_msg = f"Update contest data: {st.session_state['contest_date'].strftime('%Y-%m-%d')}"
+            save_data(df, commit_message=commit_msg)
             st.success("Contest data submitted successfully!")
             st.write("New Entry:", new_entry)
             st.session_state['participants_confirmed'] = False
