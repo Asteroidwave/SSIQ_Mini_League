@@ -1,24 +1,18 @@
 import streamlit as st
 import pandas as pd
 import datetime
-import os
 import plotly.express as px
 import plotly.graph_objects as go
-from git import Repo  # pip install GitPython
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
 
 # ---------------- Global Settings ----------------
-# Set to False to enable Git push. (Streamlit Cloud users won't have local Git.)
-TEST_MODE = False
-
 # Global dictionary for initial balances
 initial_balances = {"Hans": 0, "Rich": 80, "Ralls": -80}
 
 # Store players in session_state so that new players are recognized immediately.
 if 'players' not in st.session_state:
     st.session_state.players = list(initial_balances.keys())
-
-# Path to our CSV “database”
-DATA_FILE = 'data.csv'
 
 # Set page config (title, icon, layout)
 st.set_page_config(page_title="Mini League", page_icon=":horse_racing:", layout="wide")
@@ -29,7 +23,7 @@ custom_css = """
 /* Default (light mode) styling */
 .custom-table {
     border-collapse: collapse;
-    width: auto; /* columns auto-size to content */
+    width: auto;
     margin-bottom: 1rem;
     background-color: #ffffff;
     color: #333;
@@ -94,63 +88,70 @@ div.stButton > button:hover {
 st.markdown(custom_css, unsafe_allow_html=True)
 
 
-# ---------------- Helper Functions ----------------
-
+# ---------------- Google Sheets Helper Functions ----------------
 def load_data():
     """
-    Load contest data from the CSV file.
-    If the file is missing or empty, create a new DataFrame with columns: Date, Track, plus one column per player.
-    Also ensure that all current players have columns.
+    Load contest data from the Google Sheet "MiniLeagueData".
+    If the sheet is empty or cannot be loaded, return an empty DataFrame with columns: Date, Track, plus one column per player.
     """
-    if os.path.exists(DATA_FILE) and os.path.getsize(DATA_FILE) > 0:
-        df = pd.read_csv(DATA_FILE)
-    else:
+    scope = ["https://spreadsheets.google.com/feeds",
+             "https://www.googleapis.com/auth/spreadsheets",
+             "https://www.googleapis.com/auth/drive.file",
+             "https://www.googleapis.com/auth/drive"]
+    creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
+    client = gspread.authorize(creds)
+    try:
+        sheet = client.open("MiniLeagueData").sheet1
+    except Exception as e:
+        st.error("Error opening Google Sheet: " + str(e))
         cols = ["Date", "Track"] + st.session_state.players
-        df = pd.DataFrame(columns=cols)
+        return pd.DataFrame(columns=cols)
+    data = sheet.get_all_values()
+    if not data:
+        cols = ["Date", "Track"] + st.session_state.players
+        return pd.DataFrame(columns=cols)
+    header = data[0]
+    rows = data[1:]
+    df = pd.DataFrame(rows, columns=header)
+    # Ensure all player columns exist and convert them to numeric
     for p in st.session_state.players:
-        if p not in df.columns:
+        if p in df.columns:
+            df[p] = pd.to_numeric(df[p], errors='coerce').fillna(0)
+        else:
             df[p] = 0
+    if "Date" in df.columns:
+        df["Date"] = pd.to_datetime(df["Date"], errors='coerce')
     return df
 
 
-def save_data(df, commit_message=None):
+def save_data(df):
     """
-    Save the DataFrame to CSV and, if TEST_MODE is False, commit & push the update to GitHub.
-    The commit message can be passed in (e.g., the contest date).
+    Save the DataFrame to the Google Sheet "MiniLeagueData".
     """
-    df.to_csv(DATA_FILE, index=False)
-    st.success("Data saved locally!")
-    if TEST_MODE:
-        st.info("Test mode enabled: Skipping GitHub commit and push.")
-        return
+    scope = ["https://spreadsheets.google.com/feeds",
+             "https://www.googleapis.com/auth/spreadsheets",
+             "https://www.googleapis.com/auth/drive.file",
+             "https://www.googleapis.com/auth/drive"]
+    creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
+    client = gspread.authorize(creds)
     try:
-        repo = Repo('.')  # Assumes your project folder is a git repository.
-        repo.git.add(DATA_FILE)
-        if commit_message is None:
-            commit_message = "Update contest data"
-        repo.index.commit(commit_message)
-        origin = repo.remote(name='origin')
-        origin.push()
-        st.success("Data pushed to GitHub!")
+        sheet = client.open("MiniLeagueData").sheet1
     except Exception as e:
-        st.error(f"Error saving data to GitHub: {e}")
+        st.error("Error opening Google Sheet: " + str(e))
+        return
+    # Convert DataFrame to a list of lists; convert all entries to strings.
+    data = [df.columns.tolist()] + df.astype(str).values.tolist()
+    sheet.clear()
+    sheet.update("A1", data)
+    st.success("Data updated in Google Sheets!")
 
 
+# ---------------- Data Handling Functions ----------------
 def get_initial_balance(player):
-    """
-    Returns the initial balance for a given player.
-    """
     return initial_balances.get(player, 0)
 
 
 def calculate_result(participants, winner):
-    """
-    Given a list of participants and the selected winner,
-    compute contest outcomes for all players:
-      - For 2 entrants: winner gets +40, other gets -40.
-      - For 3 entrants: winner gets +80, others get -40.
-      - Players not in the contest remain 0.
-    """
     result = {p: 0 for p in st.session_state.players}
     if len(participants) == 2:
         profit = 40
@@ -167,9 +168,6 @@ def calculate_result(participants, winner):
 
 
 def compute_balances(df):
-    """
-    Compute each player's balance: initial balance + sum of contest results.
-    """
     balance = {}
     for p in st.session_state.players:
         balance[p] = get_initial_balance(p) + df[p].sum()
@@ -177,10 +175,6 @@ def compute_balances(df):
 
 
 def format_money(val):
-    """
-    Format a number as currency.
-    Negative values are shown in parentheses.
-    """
     if val < 0:
         return f"$ ({abs(val)})"
     else:
@@ -188,18 +182,10 @@ def format_money(val):
 
 
 def format_date_long(d):
-    """
-    Format a date (datetime or Timestamp) as 'Feb 4' (for example).
-    """
     return d.strftime("%b %-d")
 
 
 def build_contest_html_table(date_dt, day_df):
-    """
-    Build an HTML table for a given date and its contests (day_df).
-    The table has columns: Track, then one column per player.
-    The last row shows "Sub-Total" with each player's daily sum.
-    """
     date_str = format_date_long(date_dt)
     players = st.session_state.players
     html = f"""
@@ -211,7 +197,6 @@ def build_contest_html_table(date_dt, day_df):
     for p in players:
         html += f"<th>{p}</th>"
     html += "</tr>"
-
     day_subtotals = {p: 0 for p in players}
     for idx, row in day_df.iterrows():
         track = row["Track"]
@@ -221,7 +206,6 @@ def build_contest_html_table(date_dt, day_df):
             day_subtotals[p] += val
             html += f"<td>{format_money(val)}</td>"
         html += "</tr>"
-
     html += '<tr class="subtotal-row"><td>Sub-Total</td>'
     for p in players:
         html += f"<td>{format_money(day_subtotals[p])}</td>"
@@ -230,16 +214,13 @@ def build_contest_html_table(date_dt, day_df):
 
 
 # ---------------- Home Page ----------------
-
 def home_page():
     st.title("Welcome to the Mini League")
     st.markdown("<h3 style='color: darkblue;'>Let the Racing Begin!</h3>", unsafe_allow_html=True)
-
     current_date = datetime.date.today().strftime("%Y-%m-%d")
     st.markdown(f"<div style='text-align: right; font-size: 18px;'><b>Date:</b> {current_date}</div>",
                 unsafe_allow_html=True)
 
-    # Current Balances
     df = load_data()
     balances = compute_balances(df)
     st.subheader("Current Balances")
@@ -250,8 +231,10 @@ def home_page():
     st.markdown("<br>", unsafe_allow_html=True)
     st.subheader("Previous Day’s Contests")
     prev_date_dt = datetime.date.today() - datetime.timedelta(days=1)
-    df["Date"] = pd.to_datetime(df["Date"], errors='coerce')
-    prev_day_data = df[df["Date"].dt.date == prev_date_dt]
+    if "Date" in df.columns:
+        prev_day_data = df[df["Date"].dt.date == prev_date_dt]
+    else:
+        prev_day_data = pd.DataFrame()
     if prev_day_data.empty:
         st.write("No data for the previous day.")
     else:
@@ -261,7 +244,10 @@ def home_page():
     st.markdown("<br>", unsafe_allow_html=True)
     st.subheader("Contests from the Last 7 Days")
     seven_days_ago = datetime.date.today() - datetime.timedelta(days=7)
-    last_week_data = df[df["Date"].dt.date >= seven_days_ago]
+    if "Date" in df.columns:
+        last_week_data = df[df["Date"].dt.date >= seven_days_ago]
+    else:
+        last_week_data = pd.DataFrame()
     if last_week_data.empty:
         st.write("No contests in the last 7 days.")
     else:
@@ -272,7 +258,6 @@ def home_page():
 
 
 # ---------------- Statistics Page ----------------
-
 def statistics_page():
     st.title("Statistics")
     df = load_data()
@@ -280,11 +265,9 @@ def statistics_page():
         st.write("No contest data available to display statistics.")
         return
 
-    # 1. Detailed Win/Loss by Track (side-by-side tables)
     st.subheader("Detailed Win/Loss by Track")
     track_groups = df.groupby("Track")
     all_tracks = sorted(track_groups.groups.keys())
-
     track_stats = {p: {} for p in st.session_state.players}
     for track, group in track_groups:
         for p in st.session_state.players:
@@ -294,7 +277,6 @@ def statistics_page():
             total = wins + losses
             win_pct = (wins / total * 100) if total > 0 else 0
             track_stats[p][track] = (wins, losses, f"{win_pct:.0f}%")
-
     cols = st.columns(len(st.session_state.players))
     for i, p in enumerate(st.session_state.players):
         with cols[i]:
@@ -307,8 +289,6 @@ def statistics_page():
             st.dataframe(df_table, use_container_width=True)
 
     st.markdown("<br><br>", unsafe_allow_html=True)
-
-    # 2. Contest Participation & Win Ratio
     st.subheader("Contest Participation & Win Ratio")
     contest_stats = []
     for p in st.session_state.players:
@@ -328,8 +308,6 @@ def statistics_page():
     st.dataframe(df_participation, use_container_width=True)
 
     st.markdown("<br><br>", unsafe_allow_html=True)
-
-    # 3. Detailed Financial Stats
     st.subheader("Detailed Financial Stats")
     df["Date"] = pd.to_datetime(df["Date"], errors='coerce')
     financial_stats = []
@@ -366,11 +344,7 @@ def statistics_page():
     st.dataframe(df_financial, use_container_width=True)
 
     st.markdown("<br><br>", unsafe_allow_html=True)
-
-    # 4. Charts & Graphs
     st.subheader("Charts & Graphs")
-
-    # Wins by Track - Interactive Plotly Bar Chart
     win_data = []
     for idx, row in df.iterrows():
         for p in st.session_state.players:
@@ -391,7 +365,6 @@ def statistics_page():
     else:
         st.write("No wins recorded yet for bar chart.")
 
-    # Net Profit Over Time (Interactive Plotly Line Chart)
     df_line = df.copy()
     df_line["Date"] = pd.to_datetime(df_line["Date"], errors='coerce')
     daily_player_sums = df_line.groupby(df_line["Date"].dt.date)[st.session_state.players].sum().cumsum()
@@ -410,8 +383,6 @@ def statistics_page():
         st.write("No data for line chart yet.")
 
     st.markdown("<br><br>", unsafe_allow_html=True)
-
-    # 5. Player Comparison Section
     st.subheader("Player Comparison")
     compare_option = st.radio("Compare:", ("Select Two Players", "Compare to Group Average"))
     if compare_option == "Select Two Players":
@@ -441,12 +412,10 @@ def statistics_page():
 
 
 # ---------------- Data Entry Page ----------------
-
 def data_entry_page():
     st.title("Data Entry")
     st.write("Enter contest data for a specific date, track, and then select participants and the winner.")
 
-    # --- Section: Add New Player ---
     st.subheader("Add New Player")
     with st.form(key="new_player_form"):
         new_player = st.text_input("New Player Name")
@@ -460,12 +429,11 @@ def data_entry_page():
             df = load_data()
             if new_player not in df.columns:
                 df[new_player] = 0
-                save_data(df, commit_message=f"Add new player: {new_player}")
+                save_data(df)
             st.experimental_rerun()
         else:
             st.error("Invalid name or player already exists.")
 
-    # --- Two-Step Contest Entry ---
     st.subheader("Enter Contest Details")
     if 'participants_confirmed' not in st.session_state:
         st.session_state['participants_confirmed'] = False
@@ -508,9 +476,7 @@ def data_entry_page():
                 new_entry[p] = result.get(p, 0)
             df = load_data()
             df = pd.concat([df, pd.DataFrame([new_entry])], ignore_index=True)
-            # Use the contest date as the commit message.
-            commit_msg = f"Update contest data: {st.session_state['contest_date'].strftime('%Y-%m-%d')}"
-            save_data(df, commit_message=commit_msg)
+            save_data(df)
             st.success("Contest data submitted successfully!")
             st.write("New Entry:", new_entry)
             st.session_state['participants_confirmed'] = False
@@ -518,7 +484,6 @@ def data_entry_page():
 
 
 # ---------------- Main Navigation ----------------
-
 def main():
     page = st.sidebar.radio("Go to", ("Home", "Statistics", "Data Entry"))
     if page == "Home":

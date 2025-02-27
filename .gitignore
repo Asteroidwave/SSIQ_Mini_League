@@ -1,0 +1,2 @@
+#Ignoring Specific Files form being tracked by git
+credentials.json
