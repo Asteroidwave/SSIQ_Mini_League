@@ -1,3 +1,4 @@
+import os
 import streamlit as st
 import pandas as pd
 import datetime
@@ -5,6 +6,9 @@ import plotly.express as px
 import plotly.graph_objects as go
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
+
+# ---------------- Debug: Print Working Directory ----------------
+st.write("Current working directory:", os.getcwd())
 
 # ---------------- Global Settings ----------------
 # Global dictionary for initial balances
@@ -23,7 +27,7 @@ custom_css = """
 /* Default (light mode) styling */
 .custom-table {
     border-collapse: collapse;
-    width: auto;
+    width: auto; /* columns auto-size to content */
     margin-bottom: 1rem;
     background-color: #ffffff;
     color: #333;
@@ -89,17 +93,23 @@ st.markdown(custom_css, unsafe_allow_html=True)
 
 
 # ---------------- Google Sheets Helper Functions ----------------
-def load_data():
-    """
-    Load contest data from the Google Sheet "MiniLeagueData".
-    If the sheet is empty or cannot be loaded, return an empty DataFrame with columns: Date, Track, plus one column per player.
-    """
+def get_gsheets_client():
+    """Authorize and return a gspread client using the local credentials.json file."""
     scope = ["https://spreadsheets.google.com/feeds",
              "https://www.googleapis.com/auth/spreadsheets",
              "https://www.googleapis.com/auth/drive.file",
              "https://www.googleapis.com/auth/drive"]
     creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
     client = gspread.authorize(creds)
+    return client
+
+
+def load_data():
+    """
+    Load contest data from the Google Sheet "MiniLeagueData".
+    If the sheet is empty or an error occurs, return an empty DataFrame with columns: Date, Track, plus one column per player.
+    """
+    client = get_gsheets_client()
     try:
         sheet = client.open("MiniLeagueData").sheet1
     except Exception as e:
@@ -113,7 +123,7 @@ def load_data():
     header = data[0]
     rows = data[1:]
     df = pd.DataFrame(rows, columns=header)
-    # Ensure all player columns exist and convert them to numeric
+    # Convert player columns to numeric
     for p in st.session_state.players:
         if p in df.columns:
             df[p] = pd.to_numeric(df[p], errors='coerce').fillna(0)
@@ -128,18 +138,13 @@ def save_data(df):
     """
     Save the DataFrame to the Google Sheet "MiniLeagueData".
     """
-    scope = ["https://spreadsheets.google.com/feeds",
-             "https://www.googleapis.com/auth/spreadsheets",
-             "https://www.googleapis.com/auth/drive.file",
-             "https://www.googleapis.com/auth/drive"]
-    creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
-    client = gspread.authorize(creds)
+    client = get_gsheets_client()
     try:
         sheet = client.open("MiniLeagueData").sheet1
     except Exception as e:
         st.error("Error opening Google Sheet: " + str(e))
         return
-    # Convert DataFrame to a list of lists; convert all entries to strings.
+    # Convert DataFrame to a list of lists (all values as strings)
     data = [df.columns.tolist()] + df.astype(str).values.tolist()
     sheet.clear()
     sheet.update("A1", data)
@@ -213,7 +218,21 @@ def build_contest_html_table(date_dt, day_df):
     return html
 
 
-# ---------------- Home Page ----------------
+# ---------------- Navigation ----------------
+# Create clickable sidebar buttons for navigation.
+if 'current_page' not in st.session_state:
+    st.session_state.current_page = "Home"
+
+col1, col2, col3 = st.sidebar.columns(3)
+if col1.button("Home"):
+    st.session_state.current_page = "Home"
+if col2.button("Statistics"):
+    st.session_state.current_page = "Statistics"
+if col3.button("Data Entry"):
+    st.session_state.current_page = "Data Entry"
+
+
+# ---------------- Page Functions ----------------
 def home_page():
     st.title("Welcome to the Mini League")
     st.markdown("<h3 style='color: darkblue;'>Let the Racing Begin!</h3>", unsafe_allow_html=True)
@@ -231,7 +250,7 @@ def home_page():
     st.markdown("<br>", unsafe_allow_html=True)
     st.subheader("Previous Day’s Contests")
     prev_date_dt = datetime.date.today() - datetime.timedelta(days=1)
-    if "Date" in df.columns:
+    if "Date" in df.columns and not df.empty:
         prev_day_data = df[df["Date"].dt.date == prev_date_dt]
     else:
         prev_day_data = pd.DataFrame()
@@ -244,7 +263,7 @@ def home_page():
     st.markdown("<br>", unsafe_allow_html=True)
     st.subheader("Contests from the Last 7 Days")
     seven_days_ago = datetime.date.today() - datetime.timedelta(days=7)
-    if "Date" in df.columns:
+    if "Date" in df.columns and not df.empty:
         last_week_data = df[df["Date"].dt.date >= seven_days_ago]
     else:
         last_week_data = pd.DataFrame()
@@ -257,7 +276,6 @@ def home_page():
             st.markdown(table_html, unsafe_allow_html=True)
 
 
-# ---------------- Statistics Page ----------------
 def statistics_page():
     st.title("Statistics")
     df = load_data()
@@ -411,7 +429,6 @@ def statistics_page():
         st.write(f"{player}'s Net Profit: $ {df[player].sum():.2f}")
 
 
-# ---------------- Data Entry Page ----------------
 def data_entry_page():
     st.title("Data Entry")
     st.write("Enter contest data for a specific date, track, and then select participants and the winner.")
@@ -485,7 +502,7 @@ def data_entry_page():
 
 # ---------------- Main Navigation ----------------
 def main():
-    page = st.sidebar.radio("Go to", ("Home", "Statistics", "Data Entry"))
+    page = st.session_state.get("current_page", "Home")
     if page == "Home":
         home_page()
     elif page == "Statistics":
