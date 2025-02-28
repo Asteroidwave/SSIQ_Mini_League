@@ -16,7 +16,6 @@ if 'players' not in st.session_state:
     st.session_state.players = list(initial_balances.keys())
 
 # ---------------- Custom CSS ----------------
-# This CSS imports a Google Font ("Montserrat") and enhances styles for the app.
 custom_css = """
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600&display=swap');
@@ -40,7 +39,7 @@ h1, h2, h3, h4 {
     padding: 2rem;
 }
 
-/* Custom table styling */
+/* Custom table styling with increased font size */
 .custom-table {
     border-collapse: collapse;
     width: auto;
@@ -54,6 +53,7 @@ h1, h2, h3, h4 {
     padding: 10px;
     text-align: center;
     white-space: nowrap;
+    font-size: 16px;  /* Increased font size */
 }
 .custom-table th {
     background-color: #eaeaea;
@@ -95,7 +95,7 @@ h1, h2, h3, h4 {
     }
 }
 
-/* Button styling */
+/* Buttons styling */
 div.stButton > button {
     background-color: #2C3E50 !important;
     color: #ffffff !important;
@@ -173,7 +173,7 @@ def load_data():
 def save_data(df):
     """
     Save the DataFrame to the Google Sheet "MiniLeagueData".
-    Before saving, ensure the Date column is consistently formatted.
+    Before saving, ensure the Date column is formatted consistently.
     """
     if "Date" in df.columns:
         df["Date"] = pd.to_datetime(df["Date"], errors='coerce').dt.strftime("%Y-%m-%d")
@@ -485,7 +485,6 @@ def data_entry_page():
     st.markdown("#### Step 1: Contest Details & Participants")
     with st.form(key="entry_form_part1"):
         contest_date = st.date_input("Contest Date", datetime.date.today())
-        # Sorted track options
         track_options = sorted(["PARX", "TP", "DD", "GP", "PENN", "AQU", "SA", "LRL", "OP"])
         track = st.selectbox("Select Track", track_options)
         participants = st.multiselect("Select Participants", st.session_state.players)
@@ -519,7 +518,6 @@ def data_entry_page():
             save_data(df)
             st.success("Data updated successfully!")
             st.write("New Entry:", new_entry)
-            # Clear step 2: reset winner selection; keep Step 1 values intact.
             st.session_state['participants_confirmed'] = False
 
 
