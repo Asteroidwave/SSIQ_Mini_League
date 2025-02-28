@@ -12,6 +12,7 @@ st.set_page_config(page_title="Mini League", page_icon=":horse_racing:", layout=
 
 # ---------------- Global Settings ----------------
 initial_balances = {"Hans": 0, "Rich": 80, "Ralls": -80}
+
 if 'players' not in st.session_state:
     st.session_state.players = list(initial_balances.keys())
 
@@ -383,7 +384,7 @@ def statistics_page():
 
     df_line = df.copy()
     df_line["Date"] = pd.to_datetime(df_line["Date"], errors='coerce')
-    # Ensure the Date column is only a date (not a full datetime)
+    # Convert Date to a date only (not full datetime)
     df_line["Date"] = df_line["Date"].dt.date
     daily_player_sums = df_line.groupby("Date")[st.session_state.players].sum().cumsum()
     if not daily_player_sums.empty:
@@ -396,7 +397,7 @@ def statistics_page():
             color="Player",
             title="Net Profit Over Time (Line Chart)"
         )
-        # Optionally, update the x-axis tick format to display only the date.
+        # Set tick format to show only date.
         fig_line.update_xaxes(tickformat="%b %d")
         st.plotly_chart(fig_line, use_container_width=True)
     else:
@@ -448,7 +449,9 @@ def data_entry_page():
     st.markdown("#### Step 1: Contest Details & Participants")
     with st.form(key="entry_form_part1"):
         contest_date = st.date_input("Contest Date", datetime.date.today())
-        track = st.selectbox("Select Track", ["PARX", "TP", "DD", "GP", "PENN", "AQU", "SA", "LRL", "OP"])
+        # Sort track options alphabetically:
+        track_options = sorted(["PARX", "TP", "DD", "GP", "PENN", "AQU", "SA", "LRL", "OP"])
+        track = st.selectbox("Select Track", track_options)
         participants = st.multiselect("Select Participants", st.session_state.players)
         submitted1 = st.form_submit_button(label="Confirm Participants")
 
@@ -478,13 +481,12 @@ def data_entry_page():
             df = load_data()
             df = pd.concat([df, pd.DataFrame([new_entry])], ignore_index=True)
             save_data(df)
-            st.success("Contest data submitted successfully!")
+            st.success("Data updated successfully!")
             st.write("New Entry:", new_entry)
+            # Clear step 2 (winner selection) but keep step 1 values intact.
             st.session_state['participants_confirmed'] = False
-            st.session_state['participants'] = []
 
 
-# ---------------- Main Navigation ----------------
 def main():
     page = st.session_state.get("current_page", "Home")
     if page == "Home":
