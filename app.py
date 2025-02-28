@@ -7,12 +7,11 @@ import plotly.graph_objects as go
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
-# Set page config as the very first command
+# Set page config as the very first command.
 st.set_page_config(page_title="Mini League", page_icon=":horse_racing:", layout="wide")
 
-
-# Optional: Debug working directory
-#st.write("Current working directory:", os.getcwd())
+# Optional: Debug working directory.
+st.write("Current working directory:", os.getcwd())
 
 # ---------------- Global Settings ----------------
 initial_balances = {"Hans": 0, "Rich": 80, "Ralls": -80}
@@ -98,8 +97,7 @@ def get_gsheets_client():
              "https://www.googleapis.com/auth/spreadsheets",
              "https://www.googleapis.com/auth/drive.file",
              "https://www.googleapis.com/auth/drive"]
-    creds_dict = st.secrets["gcp"]
-    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+    creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
     client = gspread.authorize(creds)
     return client
 
@@ -119,6 +117,7 @@ def load_data():
     header = data[0]
     rows = data[1:]
     df = pd.DataFrame(rows, columns=header)
+    # Convert player columns to numeric.
     for p in st.session_state.players:
         if p in df.columns:
             df[p] = pd.to_numeric(df[p], errors='coerce').fillna(0)
@@ -225,7 +224,7 @@ if "current_page" not in st.session_state:
 # ---------------- Page Functions ----------------
 def home_page():
     st.title("Welcome to the Mini League")
-    st.markdown("<h3 style='color: lightblue;'>Let the Racing Begin!</h3>", unsafe_allow_html=True)
+    st.markdown("<h3 style='color: darkblue;'>Let the Racing Begin!</h3>", unsafe_allow_html=True)
     current_date = datetime.date.today().strftime("%Y-%m-%d")
     st.markdown(f"<div style='text-align: right; font-size: 18px;'><b>Date:</b> {current_date}</div>",
                 unsafe_allow_html=True)
@@ -423,23 +422,7 @@ def data_entry_page():
     st.title("Data Entry")
     st.write("Enter contest data for a specific date, track, and then select participants and the winner.")
 
-    st.subheader("Add New Player")
-    with st.form(key="new_player_form"):
-        new_player = st.text_input("New Player Name")
-        new_balance = st.number_input("Initial Balance", value=0)
-        new_player_submitted = st.form_submit_button("Add New Player")
-    if new_player_submitted:
-        if new_player and new_player not in st.session_state.players:
-            initial_balances[new_player] = new_balance
-            st.session_state.players.append(new_player)
-            st.success(f"Player '{new_player}' added with initial balance $ {new_balance}.")
-            df = load_data()
-            if new_player not in df.columns:
-                df[new_player] = 0
-                save_data(df)
-            st.experimental_rerun()
-        else:
-            st.error("Invalid name or player already exists.")
+    # Removed "Add New Player" section for now.
 
     st.subheader("Enter Contest Details")
     if 'participants_confirmed' not in st.session_state:
