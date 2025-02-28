@@ -8,6 +8,10 @@ import plotly.graph_objects as go
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
+# Global configuration for tracks and default bet amount
+TRACK_OPTIONS = ["PARX", "TP", "DD", "GP", "PENN", "AQU", "SA", "LRL", "OP"]
+DEFAULT_BET_AMOUNT = 40
+
 st.set_page_config(page_title="Mini League", page_icon=":horse_racing:", layout="wide")
 
 # ---------------- Global Settings ----------------
@@ -224,19 +228,19 @@ def get_initial_balance(player):
     return initial_balances.get(player, 0)
 
 
-def calculate_result(participants, winner):
+def calculate_result(participants, winner, bet_amount=DEFAULT_BET_AMOUNT):
     result = {p: 0 for p in st.session_state.players}
     if len(participants) == 2:
-        profit = 40
+        profit = bet_amount
     elif len(participants) == 3:
-        profit = 80
+        profit = bet_amount * 2
     else:
         profit = 0
     for p in participants:
         if p == winner:
             result[p] = profit
         else:
-            result[p] = -40
+            result[p] = -bet_amount
     return result
 
 
@@ -313,8 +317,7 @@ def build_contest_history_table(df, page=1, days_per_page=6):
 
 
 def pagination_controls(current_page, total_pages):
-    new_page = st.number_input("Page", min_value=1, max_value=total_pages, value=current_page, step=1, key="page_input",
-                               on_change=lambda: st.session_state.update({"history_page": st.session_state.page_input}))
+    new_page = st.number_input("Page", min_value=1, max_value=total_pages, value=current_page, step=1, key="page_input")
     return new_page
 
 
@@ -372,9 +375,9 @@ def home_page():
     table_html, total_pages = build_contest_history_table(df_all, page=current_page, days_per_page=days_per_page)
     st.markdown(table_html, unsafe_allow_html=True)
 
-    # Pagination controls (simple, at bottom)
-    new_page = st.number_input("Page", min_value=1, max_value=total_pages, value=current_page, step=1, key="page_input",
-                               on_change=lambda: st.session_state.update({"history_page": st.session_state.page_input}))
+    new_page = pagination_controls(current_page, total_pages)
+    if new_page != current_page:
+        st.session_state.history_page = new_page
     st.write(f"Total Pages: {total_pages}")
 
 
@@ -568,13 +571,16 @@ def data_entry_page():
         st.session_state['contest_date'] = datetime.date.today()
     if 'track' not in st.session_state:
         st.session_state['track'] = "PARX"
+    if 'bet_amount' not in st.session_state:
+        st.session_state['bet_amount'] = DEFAULT_BET_AMOUNT
 
-    st.markdown("#### Step 1: Contest Details & Participants")
+    st.markdown("#### Step 1: Contest Details, Participants & Bet Amount")
     with st.form(key="entry_form_part1"):
         contest_date = st.date_input("Contest Date", datetime.date.today())
-        track_options = sorted(["PARX", "TP", "DD", "GP", "PENN", "AQU", "SA", "LRL", "OP"])
+        track_options = sorted(TRACK_OPTIONS)
         track = st.selectbox("Select Track", track_options)
         participants = st.multiselect("Select Participants", st.session_state.players)
+        bet_amount = st.number_input("Bet Amount", min_value=1, value=DEFAULT_BET_AMOUNT, step=1)
         submitted1 = st.form_submit_button(label="Confirm Participants")
 
     if submitted1:
@@ -585,7 +591,8 @@ def data_entry_page():
             st.session_state['participants'] = participants
             st.session_state['contest_date'] = contest_date
             st.session_state['track'] = track
-            st.success("Participants confirmed. Now select the winner.")
+            st.session_state['bet_amount'] = bet_amount
+            st.success("Participants and Bet Amount confirmed. Now select the winner.")
 
     if st.session_state.get('participants_confirmed', False):
         st.markdown("#### Step 2: Choose the Winner")
@@ -593,7 +600,8 @@ def data_entry_page():
             winner = st.selectbox("Select Winner", st.session_state['participants'])
             submitted2 = st.form_submit_button(label="Submit Contest Data")
         if submitted2:
-            result = calculate_result(st.session_state['participants'], winner)
+            result = calculate_result(st.session_state['participants'], winner,
+                                      bet_amount=st.session_state['bet_amount'])
             new_entry = {
                 "Date": st.session_state['contest_date'].strftime("%Y-%m-%d"),
                 "Track": st.session_state['track'],
