@@ -10,7 +10,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 # Set page config as the very first command.
 st.set_page_config(page_title="Mini League", page_icon=":horse_racing:", layout="wide")
 
-# Optional: Debug working directory.
+# Optional: Debug working directory (can be removed later)
 st.write("Current working directory:", os.getcwd())
 
 # ---------------- Global Settings ----------------
@@ -93,16 +93,25 @@ st.markdown(custom_css, unsafe_allow_html=True)
 
 # ---------------- Google Sheets Helper Functions ----------------
 def get_gsheets_client():
-    scope = ["https://spreadsheets.google.com/feeds",
-             "https://www.googleapis.com/auth/spreadsheets",
-             "https://www.googleapis.com/auth/drive.file",
-             "https://www.googleapis.com/auth/drive"]
-    creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
+    """Authorize and return a gspread client using credentials from st.secrets."""
+    scope = [
+        "https://spreadsheets.google.com/feeds",
+        "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/drive.file",
+        "https://www.googleapis.com/auth/drive"
+    ]
+    # Load credentials from secrets (ensure your secrets.toml has a [gcp] section)
+    creds_dict = st.secrets["gcp"]
+    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
     client = gspread.authorize(creds)
     return client
 
 
 def load_data():
+    """
+    Load contest data from the Google Sheet "MiniLeagueData".
+    If the sheet is empty or an error occurs, return an empty DataFrame with proper columns.
+    """
     client = get_gsheets_client()
     try:
         sheet = client.open("MiniLeagueData").sheet1
@@ -117,7 +126,7 @@ def load_data():
     header = data[0]
     rows = data[1:]
     df = pd.DataFrame(rows, columns=header)
-    # Convert player columns to numeric.
+    # Convert player columns to numeric and fill missing values with 0
     for p in st.session_state.players:
         if p in df.columns:
             df[p] = pd.to_numeric(df[p], errors='coerce').fillna(0)
@@ -129,12 +138,16 @@ def load_data():
 
 
 def save_data(df):
+    """
+    Save the DataFrame to the Google Sheet "MiniLeagueData".
+    """
     client = get_gsheets_client()
     try:
         sheet = client.open("MiniLeagueData").sheet1
     except Exception as e:
         st.error("Error opening Google Sheet: " + str(e))
         return
+    # Convert DataFrame to list of lists (all values as strings)
     data = [df.columns.tolist()] + df.astype(str).values.tolist()
     sheet.clear()
     sheet.update("A1", data)
@@ -422,8 +435,7 @@ def data_entry_page():
     st.title("Data Entry")
     st.write("Enter contest data for a specific date, track, and then select participants and the winner.")
 
-    # Removed "Add New Player" section for now.
-
+    # Only "Enter Contest Details" is provided.
     st.subheader("Enter Contest Details")
     if 'participants_confirmed' not in st.session_state:
         st.session_state['participants_confirmed'] = False
