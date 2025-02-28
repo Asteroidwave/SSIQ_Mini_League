@@ -97,7 +97,7 @@ def get_gsheets_client():
              "https://www.googleapis.com/auth/spreadsheets",
              "https://www.googleapis.com/auth/drive.file",
              "https://www.googleapis.com/auth/drive"]
-    creds_dict = st.sectrets["gcp"]
+    creds_dict = st.secrets["gcp"]
     creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
     client = gspread.authorize(creds)
     return client
