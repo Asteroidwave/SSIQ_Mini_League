@@ -34,7 +34,7 @@ h1, h2, h3, h4 {
     color: #2C3E50;
 }
 
-/* Container and section spacing */
+/* Container spacing */
 .stApp {
     padding: 2rem;
 }
@@ -53,7 +53,7 @@ h1, h2, h3, h4 {
     padding: 10px;
     text-align: center;
     white-space: nowrap;
-    font-size: 16px;  /* Increased font size */
+    font-size: 16px; /* Increased font size */
 }
 .custom-table th {
     background-color: #eaeaea;
@@ -66,6 +66,11 @@ h1, h2, h3, h4 {
     text-align: left;
     font-weight: 600;
     padding: 6px;
+}
+
+/* Increase font size for st.dataframe components */
+[data-testid="stDataFrameContainer"] * {
+    font-size: 16px !important;
 }
 
 /* Dark mode overrides */
@@ -93,6 +98,11 @@ h1, h2, h3, h4 {
         background-color: #222222;
         color: #ffffff;
     }
+    /* Enhance text selection visibility in dark mode */
+    ::selection {
+        background: #555 !important;
+        color: #fff !important;
+    }
 }
 
 /* Buttons styling */
@@ -113,12 +123,13 @@ div.stButton > button:hover {
 
 /* Sidebar customization */
 [data-testid="stSidebar"] {
+    background-color: #f8f9fa;
     padding: 1rem;
 }
 [data-testid="stSidebar"] h1 {
     font-size: 1.5rem;
     margin-bottom: 1rem;
-    color: #8bd8e2;
+    color: #2C3E50;
 }
 </style>
 """
@@ -271,7 +282,7 @@ if "current_page" not in st.session_state:
 # ---------------- Page Functions ----------------
 def home_page():
     st.title("Welcome to the Mini League")
-    st.markdown("<h3 style='color: lightblue;'>Let the Racing Begin!</h3>", unsafe_allow_html=True)
+    st.markdown("<h3 style='color: darkblue;'>Let the Racing Begin!</h3>", unsafe_allow_html=True)
     current_date = datetime.date.today().strftime("%Y-%m-%d")
     st.markdown(f"<div style='text-align: right; font-size: 18px;'><b>Date:</b> {current_date}</div>",
                 unsafe_allow_html=True)
@@ -517,6 +528,7 @@ def data_entry_page():
             save_data(df)
             st.success("Data updated successfully!")
             st.write("New Entry:", new_entry)
+            # Clear step 2 (winner selection) but keep Step 1 data intact.
             st.session_state['participants_confirmed'] = False
 
 
