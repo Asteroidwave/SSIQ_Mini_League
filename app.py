@@ -10,14 +10,16 @@ from oauth2client.service_account import ServiceAccountCredentials
 # Set page config as the very first command.
 st.set_page_config(page_title="Mini League", page_icon=":horse_racing:", layout="wide")
 
-custom_css = """
-<style>
-body {
-    background: linear-gradient(135deg, #f0f2f6, #ffffff);
-}
-</style>
-"""
-st.markdown(custom_css, unsafe_allow_html=True)
+st.markdown(
+    """
+    <style>
+    html, body, [data-testid="stAppViewContainer"] {
+        background: linear-gradient(135deg, #f0f2f6, #ffffff) !important;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 st.write("If you can see this text with a gradient background, it’s working!")
 
 # ---------------- Global Settings ----------------
