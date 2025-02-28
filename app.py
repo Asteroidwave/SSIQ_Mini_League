@@ -31,7 +31,11 @@ body {
 /* Header styling */
 h1, h2, h3, h4 {
     font-weight: 600;
-    color: #2C3E50;
+}
+
+/* Home page header - "Let the Racing Begin!" */
+.home-header {
+    color: #2C3E50;  /* Dark blue in light mode */
 }
 
 /* Container spacing */
@@ -53,7 +57,7 @@ h1, h2, h3, h4 {
     padding: 10px;
     text-align: center;
     white-space: nowrap;
-    font-size: 16px; /* Increased font size */
+    font-size: 16px;
 }
 .custom-table th {
     background-color: #eaeaea;
@@ -71,6 +75,34 @@ h1, h2, h3, h4 {
 /* Increase font size for st.dataframe components */
 [data-testid="stDataFrameContainer"] * {
     font-size: 16px !important;
+}
+
+/* Sidebar customization */
+/* Light mode sidebar: use a light gray background and dark blue text for the title */
+[data-testid="stSidebar"] {
+    background-color: #f0f0f0;
+    padding: 1rem;
+}
+[data-testid="stSidebar"] h1 {
+    font-size: 1.5rem;
+    margin-bottom: 1rem;
+    color: #2C3E50;
+}
+
+/* Button styling */
+div.stButton > button {
+    background-color: #2C3E50 !important;
+    color: #ffffff !important;
+    border-radius: 8px !important;
+    border: none !important;
+    padding: 0.8em 1.2em !important;
+    font-weight: 600 !important;
+    cursor: pointer !important;
+    margin-bottom: 0.8em;
+    transition: background-color 0.2s ease;
+}
+div.stButton > button:hover {
+    background-color: #34495E !important;
 }
 
 /* Dark mode overrides */
@@ -98,38 +130,22 @@ h1, h2, h3, h4 {
         background-color: #222222;
         color: #ffffff;
     }
+    /* Sidebar in dark mode: dark background and light blue title */
+    [data-testid="stSidebar"] {
+        background-color: #222222;
+    }
+    [data-testid="stSidebar"] h1 {
+        color: #ADD8E6;
+    }
+    /* Home page header in dark mode: light blue */
+    .home-header {
+        color: #ADD8E6;
+    }
     /* Enhance text selection visibility in dark mode */
     ::selection {
         background: #555 !important;
         color: #fff !important;
     }
-}
-
-/* Buttons styling */
-div.stButton > button {
-    background-color: #2C3E50 !important;
-    color: #ffffff !important;
-    border-radius: 8px !important;
-    border: none !important;
-    padding: 0.8em 1.2em !important;
-    font-weight: 600 !important;
-    cursor: pointer !important;
-    margin-bottom: 0.8em;
-    transition: background-color 0.2s ease;
-}
-div.stButton > button:hover {
-    background-color: #34495E !important;
-}
-
-/* Sidebar customization */
-[data-testid="stSidebar"] {
-    background-color: #f8f9fa;
-    padding: 1rem;
-}
-[data-testid="stSidebar"] h1 {
-    font-size: 1.5rem;
-    margin-bottom: 1rem;
-    color: #2C3E50;
 }
 </style>
 """
@@ -183,7 +199,7 @@ def load_data():
 def save_data(df):
     """
     Save the DataFrame to the Google Sheet "MiniLeagueData".
-    Before saving, ensure the Date column is formatted consistently.
+    Before saving, ensure the Date column is consistently formatted.
     """
     if "Date" in df.columns:
         df["Date"] = pd.to_datetime(df["Date"], errors='coerce').dt.strftime("%Y-%m-%d")
@@ -282,7 +298,7 @@ if "current_page" not in st.session_state:
 # ---------------- Page Functions ----------------
 def home_page():
     st.title("Welcome to the Mini League")
-    st.markdown("<h3 style='color: darkblue;'>Let the Racing Begin!</h3>", unsafe_allow_html=True)
+    st.markdown('<h3 class="home-header">Let the Racing Begin!</h3>', unsafe_allow_html=True)
     current_date = datetime.date.today().strftime("%Y-%m-%d")
     st.markdown(f"<div style='text-align: right; font-size: 18px;'><b>Date:</b> {current_date}</div>",
                 unsafe_allow_html=True)
@@ -528,7 +544,7 @@ def data_entry_page():
             save_data(df)
             st.success("Data updated successfully!")
             st.write("New Entry:", new_entry)
-            # Clear step 2 (winner selection) but keep Step 1 data intact.
+            # Clear step 2 (winner selection) but keep Step 1 values intact.
             st.session_state['participants_confirmed'] = False
 
 
