@@ -9,7 +9,7 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
 # Global configuration for tracks and default bet amount
-TRACK_OPTIONS = ["PARX", "TP", "DD", "GP", "PENN", "AQU", "SA", "LRL", "OP", "CT", "MVR"]
+TRACK_OPTIONS = ["PARX", "TP", "DD", "GP", "PENN", "AQU", "SA", "LRL", "OP"]
 DEFAULT_BET_AMOUNT = 40
 
 st.set_page_config(page_title="Mini League", page_icon=":horse_racing:", layout="wide")
@@ -255,6 +255,7 @@ def format_money(val):
     return f"$ {val:,.2f}"
 
 
+# ---------------- Contest History Helper ----------------
 def build_day_subtable_html(date_val, day_data):
     day_data = day_data.sort_values(by="Track")
     players = st.session_state.players
@@ -388,32 +389,7 @@ def statistics_page():
         st.write("No contest data available to display statistics.")
         return
 
-    st.subheader("Detailed Win/Loss by Track (Ranked by Win %)")
-    track_groups = df.groupby("Track")
-    all_tracks = sorted(track_groups.groups.keys())
-    data_rows = []
-    for p in st.session_state.players:
-        total_wins = 0
-        total_losses = 0
-        for track in all_tracks:
-            group = track_groups.get_group(track)
-            p_rows = group[group[p] != 0]
-            wins = (p_rows[p] > 0).sum()
-            losses = (p_rows[p] < 0).sum()
-            total_wins += wins
-            total_losses += losses
-        total_contests = total_wins + total_losses
-        win_pct = (total_wins / total_contests * 100) if total_contests > 0 else 0
-        data_rows.append({"Player": p, "Wins": total_wins, "Losses": total_losses, "Win %": f"{win_pct:.0f}%"})
-    df_winloss = pd.DataFrame(data_rows)
-    df_winloss["NumericWinPct"] = df_winloss["Win %"].str.replace("%", "").astype(float)
-    df_winloss.sort_values(by="NumericWinPct", ascending=False, inplace=True)
-    df_winloss.drop(columns="NumericWinPct", inplace=True)
-    df_winloss.reset_index(drop=True, inplace=True)
-    df_winloss.index = df_winloss.index + 1
-    df_winloss.insert(0, "Rank", df_winloss.index)
-    st.dataframe(df_winloss, use_container_width=True)
-
+    # 1. Contest Participation & Win Ratio
     st.subheader("Contest Participation & Win Ratio (Ranked by Win Ratio)")
     data_rows2 = []
     for p in st.session_state.players:
@@ -438,6 +414,7 @@ def statistics_page():
     df_participation.insert(0, "Rank", df_participation.index)
     st.dataframe(df_participation, use_container_width=True)
 
+    # 2. Detailed Financial Stats
     st.subheader("Detailed Financial Stats (Ranked by Net Profit)")
     df["Date"] = pd.to_datetime(df["Date"], errors='coerce')
     financial_stats = []
@@ -488,74 +465,33 @@ def statistics_page():
     df_financial.insert(0, "Rank", df_financial.index)
     st.dataframe(df_financial, use_container_width=True)
 
-    st.markdown("<br><br>", unsafe_allow_html=True)
-    st.subheader("Charts & Graphs")
-    win_data = []
-    for idx, row in df.iterrows():
-        for p in st.session_state.players:
-            if row[p] > 0:
-                win_data.append({"Track": row["Track"], "Player": p})
-    if win_data:
-        win_df = pd.DataFrame(win_data)
-        win_count = win_df.groupby(["Track", "Player"]).size().reset_index(name="Wins")
-        fig_bar = px.bar(
-            win_count,
-            x="Track",
-            y="Wins",
-            color="Player",
-            barmode="group",
-            title="Wins by Track (Interactive Bar Chart)"
-        )
-        st.plotly_chart(fig_bar, use_container_width=True)
-    else:
-        st.write("No wins recorded yet for bar chart.")
+    # 3. Per-Player Track Stats (side-by-side columns)
+    st.subheader("Track Stats for Each Player")
+    df["Date"] = pd.to_datetime(df["Date"], errors='coerce')
+    track_groups = df.groupby("Track")
+    all_tracks = sorted(track_groups.groups.keys())
 
-    df_line = df.copy()
-    df_line["Date"] = pd.to_datetime(df_line["Date"], errors='coerce')
-    df_line["Date"] = df_line["Date"].dt.date
-    daily_player_sums = df_line.groupby("Date")[st.session_state.players].sum().cumsum()
-    if not daily_player_sums.empty:
-        daily_player_sums = daily_player_sums.reset_index()
-        melted = daily_player_sums.melt(id_vars="Date", var_name="Player", value_name="Net")
-        fig_line = px.line(
-            melted,
-            x="Date",
-            y="Net",
-            color="Player",
-            title="Net Profit Over Time (Line Chart)"
-        )
-        fig_line.update_xaxes(tickformat="%b %d")
-        st.plotly_chart(fig_line, use_container_width=True)
-    else:
-        st.write("No data for line chart yet.")
-
-    st.markdown("<br><br>", unsafe_allow_html=True)
-    st.subheader("Player Comparison")
-    compare_option = st.radio("Compare:", ("Select Two Players", "Compare to Group Average"))
-    if compare_option == "Select Two Players":
-        player_list = st.session_state.players.copy()
-        if len(player_list) < 2:
-            st.write("Not enough players to compare.")
-            return
-        player1 = st.selectbox("Player 1", player_list, key="comp1")
-        remaining = [p for p in player_list if p != player1]
-        player2 = st.selectbox("Player 2", remaining, key="comp2")
-        if player1 and player2:
-            comp_data = [
-                {"Player": player1, "Total Contests": len(df[df[player1] != 0]), "Net Profit": df[player1].sum()},
-                {"Player": player2, "Total Contests": len(df[df[player2] != 0]), "Net Profit": df[player2].sum()}
-            ]
-            df_comp = pd.DataFrame(comp_data).reset_index(drop=True)
-            st.dataframe(df_comp, use_container_width=True)
-    else:
-        if len(st.session_state.players) == 0:
-            st.write("No players available.")
-            return
-        player = st.selectbox("Select Player", st.session_state.players, key="comp_single")
-        overall_net = {p: df[p].sum() for p in st.session_state.players}
-        group_avg = sum(overall_net.values()) / len(st.session_state.players)
-        st.write(f"Overall Group Average Net Profit: $ {group_avg:.2f}")
-        st.write(f"{player}'s Net Profit: $ {df[player].sum():.2f}")
+    # We'll create a column for each player
+    cols = st.columns(len(st.session_state.players))
+    for i, p in enumerate(st.session_state.players):
+        with cols[i]:
+            st.markdown(f"**{p}**")
+            data_rows = []
+            for t in all_tracks:
+                group = track_groups.get_group(t)
+                p_rows = group[group[p] != 0]
+                wins = (p_rows[p] > 0).sum()
+                losses = (p_rows[p] < 0).sum()
+                total = wins + losses
+                win_pct = (wins / total * 100) if total > 0 else 0
+                data_rows.append({
+                    "Track": t,
+                    "Win": wins,
+                    "Loss": losses,
+                    "Win %": f"{win_pct:.0f}%"
+                })
+            df_table = pd.DataFrame(data_rows)
+            st.dataframe(df_table, use_container_width=True)
 
 
 def data_entry_page():
@@ -570,7 +506,7 @@ def data_entry_page():
     if 'contest_date' not in st.session_state:
         st.session_state['contest_date'] = datetime.date.today()
     if 'track' not in st.session_state:
-        st.session_state['track'] = "PARX"
+        st.session_state['track'] = TRACK_OPTIONS[0]
     if 'bet_amount' not in st.session_state:
         st.session_state['bet_amount'] = DEFAULT_BET_AMOUNT
 
@@ -600,8 +536,11 @@ def data_entry_page():
             winner = st.selectbox("Select Winner", st.session_state['participants'])
             submitted2 = st.form_submit_button(label="Submit Contest Data")
         if submitted2:
-            result = calculate_result(st.session_state['participants'], winner,
-                                      bet_amount=st.session_state['bet_amount'])
+            result = calculate_result(
+                st.session_state['participants'],
+                winner,
+                bet_amount=st.session_state['bet_amount']
+            )
             new_entry = {
                 "Date": st.session_state['contest_date'].strftime("%Y-%m-%d"),
                 "Track": st.session_state['track'],
