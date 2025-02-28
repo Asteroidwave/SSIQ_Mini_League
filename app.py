@@ -31,7 +31,7 @@ custom_css = """
 
 body {
     font-family: 'Montserrat', sans-serif;
-    background: linear-gradient(135deg, #f0f2f6, #ffffff);
+    # background: linear-gradient(135deg, #f0f2f6, #ffffff);
     color: #333;
     margin: 0;
     padding: 0;
