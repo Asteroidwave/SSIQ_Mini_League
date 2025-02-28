@@ -10,12 +10,8 @@ from oauth2client.service_account import ServiceAccountCredentials
 # Set page config as the very first command.
 st.set_page_config(page_title="Mini League", page_icon=":horse_racing:", layout="wide")
 
-# Optional: Debug working directory (can be removed later)
-st.write("Current working directory:", os.getcwd())
-
 # ---------------- Global Settings ----------------
 initial_balances = {"Hans": 0, "Rich": 80, "Ralls": -80}
-
 if 'players' not in st.session_state:
     st.session_state.players = list(initial_balances.keys())
 
@@ -100,7 +96,6 @@ def get_gsheets_client():
         "https://www.googleapis.com/auth/drive.file",
         "https://www.googleapis.com/auth/drive"
     ]
-    # Load credentials from secrets (ensure your secrets.toml has a [gcp] section)
     creds_dict = st.secrets["gcp"]
     creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
     client = gspread.authorize(creds)
@@ -110,7 +105,7 @@ def get_gsheets_client():
 def load_data():
     """
     Load contest data from the Google Sheet "MiniLeagueData".
-    If the sheet is empty or an error occurs, return an empty DataFrame with proper columns.
+    Returns a DataFrame with columns: Date, Track, plus one column per player.
     """
     client = get_gsheets_client()
     try:
@@ -126,7 +121,6 @@ def load_data():
     header = data[0]
     rows = data[1:]
     df = pd.DataFrame(rows, columns=header)
-    # Convert player columns to numeric and fill missing values with 0
     for p in st.session_state.players:
         if p in df.columns:
             df[p] = pd.to_numeric(df[p], errors='coerce').fillna(0)
@@ -140,14 +134,16 @@ def load_data():
 def save_data(df):
     """
     Save the DataFrame to the Google Sheet "MiniLeagueData".
+    Before saving, ensure the Date column is formatted consistently.
     """
+    if "Date" in df.columns:
+        df["Date"] = pd.to_datetime(df["Date"], errors='coerce').dt.strftime("%Y-%m-%d")
     client = get_gsheets_client()
     try:
         sheet = client.open("MiniLeagueData").sheet1
     except Exception as e:
         st.error("Error opening Google Sheet: " + str(e))
         return
-    # Convert DataFrame to list of lists (all values as strings)
     data = [df.columns.tolist()] + df.astype(str).values.tolist()
     sheet.clear()
     sheet.update("A1", data)
@@ -387,9 +383,11 @@ def statistics_page():
 
     df_line = df.copy()
     df_line["Date"] = pd.to_datetime(df_line["Date"], errors='coerce')
-    daily_player_sums = df_line.groupby(df_line["Date"].dt.date)[st.session_state.players].sum().cumsum()
+    # Ensure the Date column is only a date (not a full datetime)
+    df_line["Date"] = df_line["Date"].dt.date
+    daily_player_sums = df_line.groupby("Date")[st.session_state.players].sum().cumsum()
     if not daily_player_sums.empty:
-        daily_player_sums = daily_player_sums.reset_index(drop=False)
+        daily_player_sums = daily_player_sums.reset_index()
         melted = daily_player_sums.melt(id_vars="Date", var_name="Player", value_name="Net")
         fig_line = px.line(
             melted,
@@ -398,6 +396,8 @@ def statistics_page():
             color="Player",
             title="Net Profit Over Time (Line Chart)"
         )
+        # Optionally, update the x-axis tick format to display only the date.
+        fig_line.update_xaxes(tickformat="%b %d")
         st.plotly_chart(fig_line, use_container_width=True)
     else:
         st.write("No data for line chart yet.")
@@ -435,7 +435,6 @@ def data_entry_page():
     st.title("Data Entry")
     st.write("Enter contest data for a specific date, track, and then select participants and the winner.")
 
-    # Only "Enter Contest Details" is provided.
     st.subheader("Enter Contest Details")
     if 'participants_confirmed' not in st.session_state:
         st.session_state['participants_confirmed'] = False
