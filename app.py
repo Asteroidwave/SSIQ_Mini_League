@@ -12,24 +12,46 @@ st.set_page_config(page_title="Mini League", page_icon=":horse_racing:", layout=
 
 # ---------------- Global Settings ----------------
 initial_balances = {"Hans": 0, "Rich": 80, "Ralls": -80}
-
 if 'players' not in st.session_state:
     st.session_state.players = list(initial_balances.keys())
 
 # ---------------- Custom CSS ----------------
+# This CSS imports a Google Font ("Montserrat") and enhances styles for the app.
 custom_css = """
 <style>
-/* Default (light mode) styling */
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600&display=swap');
+
+body {
+    font-family: 'Montserrat', sans-serif;
+    background: linear-gradient(135deg, #f0f2f6, #ffffff);
+    color: #333;
+    margin: 0;
+    padding: 0;
+}
+
+/* Header styling */
+h1, h2, h3, h4 {
+    font-weight: 600;
+    color: #2C3E50;
+}
+
+/* Container and section spacing */
+.stApp {
+    padding: 2rem;
+}
+
+/* Custom table styling */
 .custom-table {
     border-collapse: collapse;
     width: auto;
     margin-bottom: 1rem;
     background-color: #ffffff;
     color: #333;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 .custom-table th, .custom-table td {
     border: 1px solid #ccc;
-    padding: 8px;
+    padding: 10px;
     text-align: center;
     white-space: nowrap;
 }
@@ -38,50 +60,66 @@ custom_css = """
 }
 .subtotal-row {
     background-color: #fff8c6;
-    font-weight: bold;
+    font-weight: 600;
 }
 .date-header {
     text-align: left;
-    font-weight: bold;
-    padding: 4px;
+    font-weight: 600;
+    padding: 6px;
 }
 
 /* Dark mode overrides */
 @media (prefers-color-scheme: dark) {
-  .custom-table {
-      background-color: #333333;
-      color: #ddd;
-      border: 1px solid #555;
-  }
-  .custom-table th, .custom-table td {
-      border: 1px solid #555;
-  }
-  .custom-table th {
-      background-color: #444444;
-  }
-  .subtotal-row {
-      background-color: #555555;
-      font-weight: bold;
-  }
-  .date-header {
-      background-color: #222222;
-      color: #ffffff;
-  }
+    body {
+        background: linear-gradient(135deg, #1a1a1a, #333);
+        color: #ccc;
+    }
+    .custom-table {
+        background-color: #333333;
+        color: #ddd;
+        border: 1px solid #555;
+    }
+    .custom-table th, .custom-table td {
+        border: 1px solid #555;
+    }
+    .custom-table th {
+        background-color: #444444;
+    }
+    .subtotal-row {
+        background-color: #555555;
+        font-weight: 600;
+    }
+    .date-header {
+        background-color: #222222;
+        color: #ffffff;
+    }
 }
 
-/* Buttons styling */
+/* Button styling */
 div.stButton > button {
     background-color: #2C3E50 !important;
     color: #ffffff !important;
     border-radius: 8px !important;
     border: none !important;
-    padding: 0.6em 1em !important;
+    padding: 0.8em 1.2em !important;
     font-weight: 600 !important;
     cursor: pointer !important;
-    margin-bottom: 0.5em;
+    margin-bottom: 0.8em;
+    transition: background-color 0.2s ease;
 }
 div.stButton > button:hover {
     background-color: #34495E !important;
+}
+
+/* Sidebar customization */
+[data-testid="stSidebar"] {
+    background-color: #f8f9fa;
+    padding: 1rem;
+}
+[data-testid="stSidebar"] h1 {
+    font-size: 1.5rem;
+    margin-bottom: 1rem;
+    color: #2C3E50;
 }
 </style>
 """
@@ -135,7 +173,7 @@ def load_data():
 def save_data(df):
     """
     Save the DataFrame to the Google Sheet "MiniLeagueData".
-    Before saving, ensure the Date column is formatted consistently.
+    Before saving, ensure the Date column is consistently formatted.
     """
     if "Date" in df.columns:
         df["Date"] = pd.to_datetime(df["Date"], errors='coerce').dt.strftime("%Y-%m-%d")
@@ -384,7 +422,6 @@ def statistics_page():
 
     df_line = df.copy()
     df_line["Date"] = pd.to_datetime(df_line["Date"], errors='coerce')
-    # Convert Date to a date only (not full datetime)
     df_line["Date"] = df_line["Date"].dt.date
     daily_player_sums = df_line.groupby("Date")[st.session_state.players].sum().cumsum()
     if not daily_player_sums.empty:
@@ -397,7 +434,6 @@ def statistics_page():
             color="Player",
             title="Net Profit Over Time (Line Chart)"
         )
-        # Set tick format to show only date.
         fig_line.update_xaxes(tickformat="%b %d")
         st.plotly_chart(fig_line, use_container_width=True)
     else:
@@ -449,7 +485,7 @@ def data_entry_page():
     st.markdown("#### Step 1: Contest Details & Participants")
     with st.form(key="entry_form_part1"):
         contest_date = st.date_input("Contest Date", datetime.date.today())
-        # Sort track options alphabetically:
+        # Sorted track options
         track_options = sorted(["PARX", "TP", "DD", "GP", "PENN", "AQU", "SA", "LRL", "OP"])
         track = st.selectbox("Select Track", track_options)
         participants = st.multiselect("Select Participants", st.session_state.players)
@@ -483,7 +519,7 @@ def data_entry_page():
             save_data(df)
             st.success("Data updated successfully!")
             st.write("New Entry:", new_entry)
-            # Clear step 2 (winner selection) but keep step 1 values intact.
+            # Clear step 2: reset winner selection; keep Step 1 values intact.
             st.session_state['participants_confirmed'] = False
 
 
