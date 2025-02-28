@@ -120,30 +120,6 @@ div.stButton > button:hover {
     font-weight: 600;
 }
 
-/* Pagination container (like the screenshot) */
-.pagination-container {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin-top: 1rem;
-    gap: 0.5rem;
-}
-.page-link {
-    padding: 6px 10px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    cursor: pointer;
-    background-color: #fff;
-}
-.page-link.active {
-    background-color: #2C3E50;
-    color: #fff;
-    border-color: #2C3E50;
-}
-.page-link:hover {
-    background-color: #f2f2f2;
-}
-
 /* Dark mode overrides */
 @media (prefers-color-scheme: dark) {
     body {
@@ -175,19 +151,6 @@ div.stButton > button:hover {
     }
     .subtotal-row {
         background-color: #666;
-    }
-    .page-link {
-        background-color: #444;
-        border-color: #555;
-        color: #ddd;
-    }
-    .page-link.active {
-        background-color: #2C3E50;
-        border-color: #2C3E50;
-        color: #fff;
-    }
-    .page-link:hover {
-        background-color: #555;
     }
 }
 </style>
@@ -337,7 +300,6 @@ def build_contest_history_table(df, page=1, days_per_page=6):
 
     # Build the main table with 3 rows × 2 columns
     # We'll iterate over the 6 days in row-major order
-    # If we have fewer than 6 days, some cells might be empty
     html = '<div class="history-grid-container">'
     html += '<table class="history-grid-table">'
 
@@ -357,60 +319,6 @@ def build_contest_history_table(df, page=1, days_per_page=6):
 
     html += "</table></div>"
     return html, total_pages
-
-
-def build_pagination_html(current_page, total_pages):
-    """
-    Build custom pagination HTML:
-    - "Previous" button
-    - Up to 5 page links (like 1,2,3,4,...,X)
-    - "Next" button
-    - Show total pages
-    """
-    # We'll store the final HTML in a string
-    html = '<div class="pagination-container">'
-
-    # Previous link
-    if current_page > 1:
-        html += f'<span class="page-link" data-page="{current_page - 1}">Previous</span>'
-    else:
-        html += f'<span class="page-link" style="opacity:0.5; cursor:default;">Previous</span>'
-
-    # We want to display up to 5 pages
-    # We'll figure out a range of pages to show
-    # E.g. if total_pages=10 and current_page=6, we might show 4,5,6,7,8
-    pages_to_show = 5
-    start_page = max(1, current_page - 2)
-    end_page = min(total_pages, start_page + pages_to_show - 1)
-
-    # If we still don't have 5 pages, shift start_page
-    if (end_page - start_page + 1) < pages_to_show:
-        start_page = max(1, end_page - pages_to_show + 1)
-
-    # If there's a gap before start_page
-    if start_page > 1:
-        html += f'<span class="page-link" data-page="1">1</span>'
-        if start_page > 2:
-            html += f'<span class="page-link" style="cursor:default;">...</span>'
-
-    for p in range(start_page, end_page + 1):
-        active_class = "active" if p == current_page else ""
-        html += f'<span class="page-link {active_class}" data-page="{p}">{p}</span>'
-
-    # If there's a gap after end_page
-    if end_page < total_pages:
-        if end_page < total_pages - 1:
-            html += f'<span class="page-link" style="cursor:default;">...</span>'
-        html += f'<span class="page-link" data-page="{total_pages}">{total_pages}</span>'
-
-    # Next link
-    if current_page < total_pages:
-        html += f'<span class="page-link" data-page="{current_page + 1}">Next</span>'
-    else:
-        html += f'<span class="page-link" style="opacity:0.5; cursor:default;">Next</span>'
-
-    html += "</div>"
-    return html
 
 
 # ---------------- Navigation (Vertical Sidebar Buttons) ----------------
@@ -458,45 +366,26 @@ def home_page():
         st.write("No contest history available.")
         return
 
+    # Simple pagination with st.number_input
+    # If we haven't stored a page in session_state, set it to 1
     if "history_page" not in st.session_state:
         st.session_state.history_page = 1
 
+    # Load the current page from session state
     page = st.session_state.history_page
-    table_html, total_pages = build_contest_history_table(df_all, page=page, days_per_page=6)
 
-    # Show the table
+    # Build the table for the current page
+    table_html, total_pages = build_contest_history_table(df_all, page=page, days_per_page=6)
     st.markdown(table_html, unsafe_allow_html=True)
 
-    # Show pagination
+    # Show total pages
     st.write(f"Total Pages: {total_pages}")
-    pagination_html = build_pagination_html(page, total_pages)
-    # We'll use a bit of JavaScript to handle clicks on the pagination
-    st.markdown(pagination_html, unsafe_allow_html=True)
 
-    # Add a small script to handle pagination clicks
-    pagination_script = """
-    <script>
-    const links = document.querySelectorAll('.page-link[data-page]');
-    links.forEach(link => {
-        link.addEventListener('click', () => {
-            const pageValue = parseInt(link.getAttribute('data-page'));
-            window.parent.postMessage({ 'historyPage': pageValue }, '*');
-        });
-    });
-    </script>
-    """
-    st.markdown(pagination_script, unsafe_allow_html=True)
-
-    # We'll handle the message in Python with st_js_listener or st.session_state updates
-    # However, Streamlit doesn't natively listen to window messages. So we do a workaround:
-    # We'll do a poll on next run:
-    # This requires some form of st_js_listener or other hack. For simplicity,
-    # let's do a hidden input approach. We might need a custom Streamlit component for full
-    # dynamic updates. For now, we can do a st.number_input approach or a manual refresh.
-
-    # We'll just let the user manually input the page for simplicity:
-    # The code above shows how you'd do a custom clickable approach with a Streamlit custom component.
-    # For a simpler approach, remove the JS code and let the user input the page in a st.number_input.
+    # Let the user pick a page
+    new_page = st.number_input("Page", min_value=1, max_value=total_pages, value=page, step=1)
+    if new_page != page:
+        st.session_state.history_page = new_page
+        st.experimental_rerun()
 
 
 def statistics_page():
@@ -506,7 +395,6 @@ def statistics_page():
         st.write("No contest data available to display statistics.")
         return
 
-    # Detailed Win/Loss by Track (Ranked by Win %)
     st.subheader("Detailed Win/Loss by Track (Ranked by Win %)")
     track_groups = df.groupby("Track")
     all_tracks = sorted(track_groups.groups.keys())
@@ -533,7 +421,6 @@ def statistics_page():
     df_winloss.insert(0, "Rank", df_winloss.index)
     st.dataframe(df_winloss, use_container_width=True)
 
-    # Contest Participation & Win Ratio (Ranked by Win Ratio)
     st.subheader("Contest Participation & Win Ratio (Ranked by Win Ratio)")
     data_rows2 = []
     for p in st.session_state.players:
@@ -558,7 +445,6 @@ def statistics_page():
     df_participation.insert(0, "Rank", df_participation.index)
     st.dataframe(df_participation, use_container_width=True)
 
-    # Detailed Financial Stats (Ranked by Net Profit)
     st.subheader("Detailed Financial Stats (Ranked by Net Profit)")
     df["Date"] = pd.to_datetime(df["Date"], errors='coerce')
     financial_stats = []
@@ -589,7 +475,6 @@ def statistics_page():
     for col in ["Total Bet", "Winnings", "Losses", "Net Profit"]:
         df_financial[col] = df_financial[col].apply(lambda x: f"$ {x:,.2f}")
 
-    # Convert "Highest Daily Win" to money if numeric
     def try_money(x):
         try:
             val = float(x)
@@ -599,7 +484,6 @@ def statistics_page():
 
     df_financial["Highest Daily Win"] = df_financial["Highest Daily Win"].apply(try_money)
 
-    # Sort by Net Profit
     def parse_money(s):
         return float(s.replace("$", "").replace(",", "").strip())
 
@@ -613,7 +497,6 @@ def statistics_page():
 
     st.markdown("<br><br>", unsafe_allow_html=True)
     st.subheader("Charts & Graphs")
-    # Wins by Track
     win_data = []
     for idx, row in df.iterrows():
         for p in st.session_state.players:
