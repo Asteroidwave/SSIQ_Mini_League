@@ -18,6 +18,7 @@ body {
 </style>
 """
 st.markdown(custom_css, unsafe_allow_html=True)
+st.write("If you can see this text with a gradient background, it’s working!")
 
 # ---------------- Global Settings ----------------
 initial_balances = {"Hans": 0, "Rich": 80, "Ralls": -80}
