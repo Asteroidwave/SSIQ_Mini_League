@@ -224,6 +224,9 @@ def save_data(df):
 
 
 # ---------------- Data Handling Functions ----------------
+initial_balances = {"Hans": 0, "Rich": 80, "Ralls": -80}
+
+
 def get_initial_balance(player):
     return initial_balances.get(player, 0)
 
@@ -349,7 +352,10 @@ def home_page():
     # --- Current Balances Table with Rank ---
     st.subheader("Current Balances")
     balances = compute_balances(df)
-    balance_df = pd.DataFrame([{"Player": p, "Balance": balances[p]} for p in st.session_state.players])
+    balance_df = pd.DataFrame([
+        {"Player": p, "Balance": balances[p]}
+        for p in st.session_state.players
+    ])
     balance_df = balance_df.sort_values("Balance", ascending=False).reset_index(drop=True)
     balance_df.index = balance_df.index + 1
     balance_df.insert(0, "Rank", balance_df.index)
@@ -465,13 +471,12 @@ def statistics_page():
     df_financial.insert(0, "Rank", df_financial.index)
     st.dataframe(df_financial, use_container_width=True)
 
-    # 3. Per-Player Track Stats (side-by-side columns)
+    # 3. Per-Player Track Stats (side-by-side columns, sorted by highest win %)
     st.subheader("Track Stats for Each Player")
     df["Date"] = pd.to_datetime(df["Date"], errors='coerce')
     track_groups = df.groupby("Track")
     all_tracks = sorted(track_groups.groups.keys())
 
-    # We'll create a column for each player
     cols = st.columns(len(st.session_state.players))
     for i, p in enumerate(st.session_state.players):
         with cols[i]:
@@ -491,7 +496,86 @@ def statistics_page():
                     "Win %": f"{win_pct:.0f}%"
                 })
             df_table = pd.DataFrame(data_rows)
+            # Sort by numeric win % descending
+            df_table["NumericWinPct"] = df_table["Win %"].str.replace("%", "").astype(float)
+            df_table.sort_values(by="NumericWinPct", ascending=False, inplace=True)
+            df_table.drop(columns="NumericWinPct", inplace=True)
+            df_table.reset_index(drop=True, inplace=True)
+
             st.dataframe(df_table, use_container_width=True)
+
+    # 4. Charts & Graphs
+    st.markdown("<br><br>", unsafe_allow_html=True)
+    st.subheader("Charts & Graphs")
+    # Wins by Track (Bar Chart)
+    win_data = []
+    for idx, row in df.iterrows():
+        for p in st.session_state.players:
+            if row[p] > 0:
+                win_data.append({"Track": row["Track"], "Player": p})
+    if win_data:
+        win_df = pd.DataFrame(win_data)
+        win_count = win_df.groupby(["Track", "Player"]).size().reset_index(name="Wins")
+        fig_bar = px.bar(
+            win_count,
+            x="Track",
+            y="Wins",
+            color="Player",
+            barmode="group",
+            title="Wins by Track (Interactive Bar Chart)"
+        )
+        st.plotly_chart(fig_bar, use_container_width=True)
+    else:
+        st.write("No wins recorded yet for bar chart.")
+
+    # Net Profit Over Time (Line Chart)
+    df_line = df.copy()
+    df_line["Date"] = pd.to_datetime(df_line["Date"], errors='coerce')
+    df_line["Date"] = df_line["Date"].dt.date
+    daily_player_sums = df_line.groupby("Date")[st.session_state.players].sum().cumsum()
+    if not daily_player_sums.empty:
+        daily_player_sums = daily_player_sums.reset_index()
+        melted = daily_player_sums.melt(id_vars="Date", var_name="Player", value_name="Net")
+        fig_line = px.line(
+            melted,
+            x="Date",
+            y="Net",
+            color="Player",
+            title="Net Profit Over Time (Line Chart)"
+        )
+        fig_line.update_xaxes(tickformat="%b %d")
+        st.plotly_chart(fig_line, use_container_width=True)
+    else:
+        st.write("No data for line chart yet.")
+
+    # 5. Player Comparison
+    st.markdown("<br><br>", unsafe_allow_html=True)
+    st.subheader("Player Comparison")
+    compare_option = st.radio("Compare:", ("Select Two Players", "Compare to Group Average"))
+    if compare_option == "Select Two Players":
+        player_list = st.session_state.players.copy()
+        if len(player_list) < 2:
+            st.write("Not enough players to compare.")
+            return
+        player1 = st.selectbox("Player 1", player_list, key="comp1")
+        remaining = [pl for pl in player_list if pl != player1]
+        player2 = st.selectbox("Player 2", remaining, key="comp2")
+        if player1 and player2:
+            comp_data = [
+                {"Player": player1, "Total Contests": len(df[df[player1] != 0]), "Net Profit": df[player1].sum()},
+                {"Player": player2, "Total Contests": len(df[df[player2] != 0]), "Net Profit": df[player2].sum()}
+            ]
+            df_comp = pd.DataFrame(comp_data).reset_index(drop=True)
+            st.dataframe(df_comp, use_container_width=True)
+    else:
+        if len(st.session_state.players) == 0:
+            st.write("No players available.")
+            return
+        player = st.selectbox("Select Player", st.session_state.players, key="comp_single")
+        overall_net = {pl: df[pl].sum() for pl in st.session_state.players}
+        group_avg = sum(overall_net.values()) / len(st.session_state.players)
+        st.write(f"Overall Group Average Net Profit: $ {group_avg:.2f}")
+        st.write(f"{player}'s Net Profit: $ {df[player].sum():.2f}")
 
 
 def data_entry_page():
