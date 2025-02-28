@@ -9,7 +9,7 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
 # Global configuration for tracks and default bet amount
-TRACK_OPTIONS = ["PARX", "TP", "DD", "GP", "PENN", "AQU", "SA", "LRL", "OP", "CT"]
+TRACK_OPTIONS = ["PARX", "TP", "DD", "GP", "PENN", "AQU", "SA", "LRL", "OP", "CT", "MVR"]
 DEFAULT_BET_AMOUNT = 40
 
 st.set_page_config(page_title="Mini League", page_icon=":horse_racing:", layout="wide")
