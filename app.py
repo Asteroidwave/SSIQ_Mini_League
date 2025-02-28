@@ -10,6 +10,15 @@ from oauth2client.service_account import ServiceAccountCredentials
 # Set page config as the very first command.
 st.set_page_config(page_title="Mini League", page_icon=":horse_racing:", layout="wide")
 
+custom_css = """
+<style>
+body {
+    background: linear-gradient(135deg, #f0f2f6, #ffffff);
+}
+</style>
+"""
+st.markdown(custom_css, unsafe_allow_html=True)
+
 # ---------------- Global Settings ----------------
 initial_balances = {"Hans": 0, "Rich": 80, "Ralls": -80}
 if 'players' not in st.session_state:
