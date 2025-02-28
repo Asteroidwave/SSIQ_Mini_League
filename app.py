@@ -271,7 +271,7 @@ if "current_page" not in st.session_state:
 # ---------------- Page Functions ----------------
 def home_page():
     st.title("Welcome to the Mini League")
-    st.markdown("<h3 style='color: darkblue;'>Let the Racing Begin!</h3>", unsafe_allow_html=True)
+    st.markdown("<h3 style='color: lightblue;'>Let the Racing Begin!</h3>", unsafe_allow_html=True)
     current_date = datetime.date.today().strftime("%Y-%m-%d")
     st.markdown(f"<div style='text-align: right; font-size: 18px;'><b>Date:</b> {current_date}</div>",
                 unsafe_allow_html=True)
