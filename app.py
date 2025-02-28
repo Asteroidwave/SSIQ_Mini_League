@@ -85,7 +85,7 @@ div.stButton > button:hover {
     padding: 1rem;
 }
 
-/* 2 columns, 3 rows => 6 days per page */
+/* Main grid: 2 columns, 3 rows => 6 days per page */
 .history-grid-table {
     border-collapse: separate;
     border-spacing: 20px; /* gap between sub-tables */
@@ -120,6 +120,30 @@ div.stButton > button:hover {
     font-weight: 600;
 }
 
+/* Pagination container */
+.pagination-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 1rem;
+    gap: 0.5rem;
+}
+.page-link {
+    padding: 6px 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    cursor: pointer;
+    background-color: #fff;
+}
+.page-link.active {
+    background-color: #2C3E50;
+    color: #fff;
+    border-color: #2C3E50;
+}
+.page-link:hover {
+    background-color: #f2f2f2;
+}
+
 /* Dark mode overrides */
 @media (prefers-color-scheme: dark) {
     body {
@@ -151,6 +175,19 @@ div.stButton > button:hover {
     }
     .subtotal-row {
         background-color: #666;
+    }
+    .page-link {
+        background-color: #444;
+        border-color: #555;
+        color: #ddd;
+    }
+    .page-link.active {
+        background-color: #2C3E50;
+        border-color: #2C3E50;
+        color: #fff;
+    }
+    .page-link:hover {
+        background-color: #555;
     }
 }
 </style>
@@ -253,16 +290,13 @@ def build_day_subtable_html(date_val, day_data):
     day_subtotals = {p: 0 for p in players}
 
     html = '<table class="history-subtable">'
-    # Date header
     date_str = date_val.strftime("%b %d")
     html += f'<tr><th colspan="{1 + len(players)}" class="history-date-header">{date_str}</th></tr>'
-    # Column headers
     html += "<tr><th>Track</th>"
     for p in players:
         html += f"<th>{p}</th>"
     html += "</tr>"
 
-    # Rows
     for idx, row in day_data.iterrows():
         track = row["Track"]
         html += f"<tr><td>{track}</td>"
@@ -275,20 +309,17 @@ def build_day_subtable_html(date_val, day_data):
                 html += f"<td>{format_money(val)}</td>"
         html += "</tr>"
 
-    # Sub-total row
-    html += f'<tr class="subtotal-row"><td>Sub-Total</td>'
+    html += '<tr class="subtotal-row"><td>Sub-Total</td>'
     for p in players:
         html += f"<td>{format_money(day_subtotals[p])}</td>"
-    html += "</tr>"
-    html += "</table>"
+    html += "</tr></table>"
     return html
 
 
 def build_contest_history_table(df, page=1, days_per_page=6):
     """
-    Build a table with 2 columns × 3 rows => 6 days per page.
-    We'll create a main table with 3 rows, 2 columns each => 6 cells.
-    Each cell is a sub-table for a single day.
+    Build a single table containing a 2x3 grid (6 days per page).
+    Each cell is a sub-table for one day's contests.
     """
     df["DateOnly"] = df["Date"].dt.date
     unique_dates = sorted(df["DateOnly"].unique(), reverse=True)
@@ -298,8 +329,7 @@ def build_contest_history_table(df, page=1, days_per_page=6):
     end_idx = start_idx + days_per_page
     dates_to_show = unique_dates[start_idx:end_idx]
 
-    # Build the main table with 3 rows × 2 columns
-    # We'll iterate over the 6 days in row-major order
+    # Build the grid: 2 columns × 3 rows
     html = '<div class="history-grid-container">'
     html += '<table class="history-grid-table">'
 
@@ -313,12 +343,19 @@ def build_contest_history_table(df, page=1, days_per_page=6):
                 day_html = build_day_subtable_html(date_val, day_data)
                 html += f"<td style='vertical-align: top;'>{day_html}</td>"
             else:
-                # empty cell
                 html += "<td></td>"
         html += "</tr>"
 
     html += "</table></div>"
     return html, total_pages
+
+
+# ---------------- Simple Pagination (using st.number_input) ----------------
+def pagination_controls(current_page, total_pages):
+    st.markdown("<div style='text-align:center; width:200px; margin: 0 auto;'>", unsafe_allow_html=True)
+    new_page = st.number_input("Page", min_value=1, max_value=total_pages, value=current_page, step=1)
+    st.markdown("</div>", unsafe_allow_html=True)
+    return new_page
 
 
 # ---------------- Navigation (Vertical Sidebar Buttons) ----------------
@@ -352,40 +389,32 @@ def home_page():
         {"Player": p, "Balance": balances[p]}
         for p in st.session_state.players
     ])
-    # Sort descending by Balance
     balance_df = balance_df.sort_values("Balance", ascending=False).reset_index(drop=True)
     balance_df.index = balance_df.index + 1
     balance_df.insert(0, "Rank", balance_df.index)
     balance_df["Balance"] = balance_df["Balance"].apply(format_money)
     st.dataframe(balance_df, use_container_width=True)
 
-    # --- Contest History (2 columns x 3 rows => 6 days per page) ---
+    # --- Contest History (2 columns x 3 rows = 6 days per page) ---
     st.subheader("Contest History")
     df_all = load_data()
     if df_all.empty:
         st.write("No contest history available.")
         return
-
-    # Simple pagination with st.number_input
-    # If we haven't stored a page in session_state, set it to 1
     if "history_page" not in st.session_state:
         st.session_state.history_page = 1
+    current_page = st.session_state.history_page
 
-    # Load the current page from session state
-    page = st.session_state.history_page
-
-    # Build the table for the current page
-    table_html, total_pages = build_contest_history_table(df_all, page=page, days_per_page=6)
+    # Build contest history table
+    table_html, total_pages = build_contest_history_table(df_all, page=current_page, days_per_page=6)
     st.markdown(table_html, unsafe_allow_html=True)
 
-    # Show total pages
-    st.write(f"Total Pages: {total_pages}")
-
-    # Let the user pick a page
-    new_page = st.number_input("Page", min_value=1, max_value=total_pages, value=page, step=1)
-    if new_page != page:
+    # Pagination controls at the bottom
+    new_page = pagination_controls(current_page, total_pages)
+    if new_page != current_page:
         st.session_state.history_page = new_page
         st.experimental_rerun()
+    st.write(f"Total Pages: {total_pages}")
 
 
 def statistics_page():
