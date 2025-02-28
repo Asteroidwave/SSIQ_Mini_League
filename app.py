@@ -8,7 +8,6 @@ import plotly.graph_objects as go
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
-# Set page config as the very first command.
 st.set_page_config(page_title="Mini League", page_icon=":horse_racing:", layout="wide")
 
 # ---------------- Global Settings ----------------
@@ -29,14 +28,14 @@ body {
     padding: 0;
 }
 
-/* Header styling */
+/* Headers */
 h1, h2, h3, h4 {
     font-weight: 600;
 }
 
-/* Home page header */
+/* Home page header - Let the Racing Begin! */
 .home-header {
-    color: #2C3E50;  /* Dark blue in light mode */
+    color: #2C3E50;
 }
 
 /* Container spacing */
@@ -44,52 +43,12 @@ h1, h2, h3, h4 {
     padding: 2rem;
 }
 
-/* Custom table styling with increased font size */
-.custom-table {
-    border-collapse: collapse;
-    width: auto;
-    margin-bottom: 1rem;
-    background-color: #ffffff;
-    color: #333;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
-.custom-table th, .custom-table td {
-    border: 1px solid #ccc;
-    padding: 10px;
-    text-align: center;
-    white-space: nowrap;
-    font-size: 16px;
-}
-.custom-table th {
-    background-color: #eaeaea;
-}
-.subtotal-row {
-    background-color: #fff8c6;
-    font-weight: 600;
-}
-.date-header {
-    text-align: left;
-    font-weight: 600;
-    padding: 6px;
-}
-
-/* Increase font size for st.dataframe components */
+/* DataFrame font size */
 [data-testid="stDataFrameContainer"] * {
     font-size: 16px !important;
 }
 
-/* Sidebar customization */
-[data-testid="stSidebar"] {
-    background-color: #f0f0f0;
-    padding: 1rem;
-}
-[data-testid="stSidebar"] h1 {
-    font-size: 1.5rem;
-    margin-bottom: 1rem;
-    color: #2C3E50;
-}
-
-/* Button styling */
+/* Buttons */
 div.stButton > button {
     background-color: #2C3E50 !important;
     color: #ffffff !important;
@@ -105,30 +64,62 @@ div.stButton > button:hover {
     background-color: #34495E !important;
 }
 
+/* Sidebar */
+[data-testid="stSidebar"] {
+    background-color: #f0f0f0;
+    padding: 1rem;
+}
+[data-testid="stSidebar"] h1 {
+    font-size: 1.5rem;
+    margin-bottom: 1rem;
+    color: #2C3E50;
+}
+
+/* Contest History single table container */
+.history-table-container {
+    max-width: 25%;
+    margin: 0 auto;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+    border: 1px solid #ccc;
+    padding: 1rem;
+    background-color: #fff;
+}
+
+/* Single table with days as sub-sections */
+.history-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+.history-table td, .history-table th {
+    border: 1px solid #ccc;
+    padding: 8px;
+    text-align: center;
+    font-size: 15px;
+    white-space: nowrap;
+}
+.history-table th {
+    background-color: #f7f7f7;
+}
+.history-date-header {
+    font-weight: 600;
+    text-align: left;
+    padding: 6px;
+    background-color: #eaeaea;
+}
+.subtotal-row {
+    background-color: #ffe8a6;
+    font-weight: 600;
+}
+
 /* Dark mode overrides */
 @media (prefers-color-scheme: dark) {
     body {
         background: linear-gradient(135deg, #1a1a1a, #333);
         color: #ccc;
     }
-    .custom-table {
-        background-color: #333333;
-        color: #ddd;
-        border: 1px solid #555;
-    }
-    .custom-table th, .custom-table td {
-        border: 1px solid #555;
-    }
-    .custom-table th {
-        background-color: #444444;
-    }
-    .subtotal-row {
-        background-color: #555555;
-        font-weight: 600;
-    }
-    .date-header {
-        background-color: #222222;
-        color: #ffffff;
+    .home-header {
+        color: #ADD8E6;
     }
     [data-testid="stSidebar"] {
         background-color: #222222;
@@ -136,12 +127,22 @@ div.stButton > button:hover {
     [data-testid="stSidebar"] h1 {
         color: #ADD8E6;
     }
-    .home-header {
-        color: #ADD8E6;
+    .history-table-container {
+        background-color: #333;
+        border: 1px solid #555;
     }
-    ::selection {
-        background: #555 !important;
-        color: #fff !important;
+    .history-table {
+        background-color: #444;
+        color: #ddd;
+    }
+    .history-table th {
+        background-color: #555;
+    }
+    .history-date-header {
+        background-color: #555;
+    }
+    .subtotal-row {
+        background-color: #666;
     }
 }
 </style>
@@ -151,7 +152,6 @@ st.markdown(custom_css, unsafe_allow_html=True)
 
 # ---------------- Google Sheets Helper Functions ----------------
 def get_gsheets_client():
-    """Authorize and return a gspread client using credentials from st.secrets."""
     scope = [
         "https://spreadsheets.google.com/feeds",
         "https://www.googleapis.com/auth/spreadsheets",
@@ -165,15 +165,11 @@ def get_gsheets_client():
 
 
 def load_data():
-    """
-    Load contest data from the Google Sheet "MiniLeagueData".
-    Returns a DataFrame with columns: Date, Track, plus one column per player.
-    """
     client = get_gsheets_client()
     try:
         sheet = client.open("MiniLeagueData").sheet1
     except Exception as e:
-        st.error("Error opening Google Sheet: " + str(e))
+        st.error(f"Error opening Google Sheet: {e}")
         cols = ["Date", "Track"] + st.session_state.players
         return pd.DataFrame(columns=cols)
     data = sheet.get_all_values()
@@ -194,17 +190,13 @@ def load_data():
 
 
 def save_data(df):
-    """
-    Save the DataFrame to the Google Sheet "MiniLeagueData".
-    Before saving, ensure the Date column is consistently formatted.
-    """
     if "Date" in df.columns:
         df["Date"] = pd.to_datetime(df["Date"], errors='coerce').dt.strftime("%Y-%m-%d")
     client = get_gsheets_client()
     try:
         sheet = client.open("MiniLeagueData").sheet1
     except Exception as e:
-        st.error("Error opening Google Sheet: " + str(e))
+        st.error(f"Error opening Google Sheet: {e}")
         return
     data = [df.columns.tolist()] + df.astype(str).values.tolist()
     sheet.clear()
@@ -241,7 +233,6 @@ def compute_balances(df):
 
 
 def format_money(val):
-    """Return the value formatted as currency."""
     return f"$ {val:,.2f}"
 
 
@@ -249,32 +240,65 @@ def format_date_long(d):
     return d.strftime("%b %-d")
 
 
-def build_contest_html_table(date_dt, day_df):
-    date_str = format_date_long(date_dt)
-    players = st.session_state.players
-    html = f"""
-    <table class="custom-table">
-      <tr><th colspan="{1 + len(players)}" class="date-header">{date_str}</th></tr>
-      <tr>
-        <th>Track</th>
+def build_history_table_html(df, page=1, days_per_page=5):
     """
-    for p in players:
-        html += f"<th>{p}</th>"
-    html += "</tr>"
-    day_subtotals = {p: 0 for p in players}
-    for idx, row in day_df.iterrows():
-        track = row["Track"]
-        html += f"<tr><td>{track}</td>"
-        for p in players:
-            val = row[p]
-            day_subtotals[p] += val
-            html += f"<td>{format_money(val)}</td>"
+    Build a single HTML table that includes all days in df, but only
+    the subset for the current page. Each day is a 'section' within the table.
+    """
+    df["DateOnly"] = df["Date"].dt.date
+    unique_dates = sorted(df["DateOnly"].unique(), reverse=True)
+    total_pages = math.ceil(len(unique_dates) / days_per_page)
+
+    start_idx = (page - 1) * days_per_page
+    end_idx = start_idx + days_per_page
+    dates_to_show = unique_dates[start_idx:end_idx]
+
+    # Build one big table
+    html = '<div class="history-table-container">'
+    html += '<table class="history-table">'
+
+    for date_val in dates_to_show:
+        day_data = df[df["DateOnly"] == date_val].copy()
+
+        # Build the day header row
+        html += f'<tr><th colspan="{2 + len(st.session_state.players)}" class="history-date-header">{date_val.strftime("%b %d")}</th></tr>'
+
+        # Build the column header row
+        html += "<tr><th>Track</th>"
+        for p in st.session_state.players:
+            html += f"<th>{p}</th>"
         html += "</tr>"
-    html += '<tr class="subtotal-row"><td>Sub-Total</td>'
-    for p in players:
-        html += f"<td>{format_money(day_subtotals[p])}</td>"
-    html += "</tr></table>"
-    return html
+
+        # Fill table rows
+        # If a participant has 0, that means they didn't play => display "N"
+        # Otherwise format as money
+        day_data.sort_values(by="Track", inplace=True)
+        day_subtotals = {p: 0 for p in st.session_state.players}
+
+        for idx, row in day_data.iterrows():
+            track = row["Track"]
+            html += f"<tr><td>{track}</td>"
+            for p in st.session_state.players:
+                val = row[p]
+                day_subtotals[p] += val
+                if val == 0:
+                    # Means they didn't participate => "N"
+                    # but if val is actually 0 from a 2-person scenario, it's ambiguous
+                    # We'll assume 2-person scenario => -40 or +40 => never 0
+                    # So 0 means no entry
+                    html += "<td>N</td>"
+                else:
+                    html += f"<td>{format_money(val)}</td>"
+            html += "</tr>"
+
+        # Sub-total row
+        html += f'<tr class="subtotal-row"><td>Sub-Total</td>'
+        for p in st.session_state.players:
+            html += f"<td>{format_money(day_subtotals[p])}</td>"
+        html += "</tr>"
+
+    html += "</table></div>"
+    return html, total_pages
 
 
 # ---------------- Navigation (Vertical Sidebar Buttons) ----------------
@@ -294,44 +318,47 @@ if "current_page" not in st.session_state:
 def home_page():
     st.title("Welcome to the Mini League")
     st.markdown('<h3 class="home-header">Let the Racing Begin!</h3>', unsafe_allow_html=True)
+
     current_date = datetime.date.today().strftime("%Y-%m-%d")
     st.markdown(f"<div style='text-align: right; font-size: 18px;'><b>Date:</b> {current_date}</div>",
                 unsafe_allow_html=True)
 
     df = load_data()
 
-    # --- Current Balances Table with Ranking ---
+    # --- Current Balances Table with Rank (Remove blank column) ---
     st.subheader("Current Balances")
     balances = compute_balances(df)
-    balance_df = pd.DataFrame([{"Player": p, "Balance": balances[p]} for p in st.session_state.players])
-    balance_df = balance_df.sort_values(by="Balance", ascending=False).reset_index(drop=True)
-    balance_df.index = balance_df.index + 1  # Start rank at 1
+    balance_df = pd.DataFrame([
+        {"Player": p, "Balance": balances[p]}
+        for p in st.session_state.players
+    ])
+    # Sort descending by Balance
+    balance_df = balance_df.sort_values("Balance", ascending=False).reset_index(drop=True)
+    # Insert rank column (1-based)
+    balance_df.index = balance_df.index + 1
     balance_df.insert(0, "Rank", balance_df.index)
-    # Format the Balance column
+    # Format currency
     balance_df["Balance"] = balance_df["Balance"].apply(format_money)
     st.dataframe(balance_df, use_container_width=True)
 
-    # --- Contest History with Paginator ---
-    st.subheader("Contest History")
+    st.subheader("Contest History (Paginated)")
     df_all = load_data()
     if df_all.empty:
         st.write("No contest history available.")
-    else:
-        # Get unique dates (as date objects) sorted in descending order.
-        df_all["DateOnly"] = df_all["Date"].dt.date
-        unique_dates = sorted(df_all["DateOnly"].unique(), reverse=True)
-        days_per_page = 5
-        total_pages = math.ceil(len(unique_dates) / days_per_page)
-        page = st.number_input("Page", min_value=1, max_value=total_pages, value=1, step=1)
-        # Determine which dates to display on this page.
-        start = (page - 1) * days_per_page
-        end = start + days_per_page
-        dates_to_show = unique_dates[start:end]
-        # Build a combined table (one after another) for these dates.
-        for date_val in dates_to_show:
-            day_data = df_all[df_all["DateOnly"] == date_val]
-            table_html = build_contest_html_table(date_val, day_data)
-            st.markdown(table_html, unsafe_allow_html=True)
+        return
+    # Pagination
+    if "history_page" not in st.session_state:
+        st.session_state.history_page = 1
+    page = st.number_input("Page", min_value=1, value=st.session_state.history_page, step=1)
+
+    table_html, total_pages = build_history_table_html(df_all, page=page, days_per_page=5)
+    st.markdown(table_html, unsafe_allow_html=True)
+
+    # If user changes the page number, store it
+    if page != st.session_state.history_page:
+        st.session_state.history_page = page
+
+    st.write(f"Total Pages: {total_pages}")
 
 
 def statistics_page():
@@ -341,50 +368,62 @@ def statistics_page():
         st.write("No contest data available to display statistics.")
         return
 
-    st.subheader("Detailed Win/Loss by Track")
+    # 1. Detailed Win/Loss by Track (ranked by highest win %)
+    st.subheader("Detailed Win/Loss by Track (Ranked by Win %)")
     track_groups = df.groupby("Track")
     all_tracks = sorted(track_groups.groups.keys())
-    track_stats = {p: {} for p in st.session_state.players}
-    for track, group in track_groups:
-        for p in st.session_state.players:
+
+    # We'll store totalWins, totalLoss, totalContests, winPct for each player
+    data_rows = []
+    for p in st.session_state.players:
+        # Sum up total wins and losses across all tracks
+        total_wins = 0
+        total_losses = 0
+        for track in all_tracks:
+            group = track_groups.get_group(track)
             p_rows = group[group[p] != 0]
             wins = (p_rows[p] > 0).sum()
             losses = (p_rows[p] < 0).sum()
-            total = wins + losses
-            win_pct = (wins / total * 100) if total > 0 else 0
-            track_stats[p][track] = (wins, losses, f"{win_pct:.0f}%")
-    cols = st.columns(len(st.session_state.players))
-    for i, p in enumerate(st.session_state.players):
-        with cols[i]:
-            st.markdown(f"**{p}**")
-            data_rows = []
-            for t in all_tracks:
-                wins, losses, wpct = track_stats[p].get(t, (0, 0, "0%"))
-                data_rows.append({"Track": t, "Win": wins, "Loss": losses, "Win %": wpct})
-            df_table = pd.DataFrame(data_rows).reset_index(drop=True)
-            st.dataframe(df_table, use_container_width=True)
+            total_wins += wins
+            total_losses += losses
+        total_contests = total_wins + total_losses
+        win_pct = (total_wins / total_contests * 100) if total_contests > 0 else 0
+        data_rows.append({"Player": p, "Wins": total_wins, "Losses": total_losses, "Win %": f"{win_pct:.0f}%"})
+    df_winloss = pd.DataFrame(data_rows)
+    # Sort by highest Win % (need numeric sort)
+    df_winloss["NumericWinPct"] = df_winloss["Win %"].str.replace("%", "").astype(float)
+    df_winloss = df_winloss.sort_values(by="NumericWinPct", ascending=False).reset_index(drop=True)
+    df_winloss.index = df_winloss.index + 1
+    df_winloss.insert(0, "Rank", df_winloss.index)
+    df_winloss.drop(columns="NumericWinPct", inplace=True)
+    st.dataframe(df_winloss, use_container_width=True)
 
-    st.markdown("<br><br>", unsafe_allow_html=True)
-    st.subheader("Contest Participation & Win Ratio")
-    contest_stats = []
+    # 2. Contest Participation & Win Ratio (ranked by highest ratio)
+    st.subheader("Contest Participation & Win Ratio (Ranked by Win Ratio)")
+    data_rows2 = []
     for p in st.session_state.players:
         df_player = df[df[p] != 0]
         total_contests = len(df_player)
         wins = (df_player[p] > 0).sum()
         losses = (df_player[p] < 0).sum()
         win_ratio = (wins / total_contests * 100) if total_contests > 0 else 0
-        contest_stats.append({
+        data_rows2.append({
             "Player": p,
             "Total Contests": total_contests,
             "Wins": wins,
             "Losses": losses,
             "Win Ratio": f"{win_ratio:.1f}%"
         })
-    df_participation = pd.DataFrame(contest_stats).reset_index(drop=True)
+    df_participation = pd.DataFrame(data_rows2)
+    df_participation["NumericWinRatio"] = df_participation["Win Ratio"].str.replace("%", "").astype(float)
+    df_participation = df_participation.sort_values(by="NumericWinRatio", ascending=False).reset_index(drop=True)
+    df_participation.index = df_participation.index + 1
+    df_participation.insert(0, "Rank", df_participation.index)
+    df_participation.drop(columns="NumericWinRatio", inplace=True)
     st.dataframe(df_participation, use_container_width=True)
 
-    st.markdown("<br><br>", unsafe_allow_html=True)
-    st.subheader("Detailed Financial Stats")
+    # 3. Detailed Financial Stats
+    st.subheader("Detailed Financial Stats (Ranked by Net Profit)")
     df["Date"] = pd.to_datetime(df["Date"], errors='coerce')
     financial_stats = []
     for p in st.session_state.players:
@@ -398,13 +437,10 @@ def statistics_page():
             best_day_value = daily_sums.max()
             best_day = daily_sums.idxmax()
             best_day_dt = datetime.datetime.combine(best_day, datetime.datetime.min.time())
-            best_day_str = format_date_long(best_day_dt)
+            best_day_str = best_day_dt.strftime("%b %-d")
         else:
             best_day_value = 0
             best_day_str = "N/A"
-        track_profit = df.groupby("Track")[p].sum()
-        best_track = track_profit.idxmax() if not track_profit.empty else "N/A"
-        worst_track = track_profit.idxmin() if not track_profit.empty else "N/A"
         financial_stats.append({
             "Player": p,
             "Total Bet": total_bet,
@@ -417,14 +453,29 @@ def statistics_page():
     df_financial = pd.DataFrame(financial_stats)
     # Format currency columns
     for col in ["Total Bet", "Winnings", "Losses", "Net Profit", "Highest Daily Win"]:
-        df_financial[col] = df_financial[col].apply(format_money)
-    df_financial = df_financial.sort_values(by="Net Profit", ascending=False).reset_index(drop=True)
+        if col == "Highest Daily Win":  # numeric, but for day usage we keep
+            df_financial[col] = df_financial[col].apply(lambda x: format_money(x) if isinstance(x, (int, float)) else x)
+        else:
+            df_financial[col] = df_financial[col].apply(format_money)
+
+    # Sort by Net Profit descending
+    # Need to parse Net Profit from string to float
+    def parse_money(s):
+        # s is like '$ 1,234.00'
+        return float(s.replace("$", "").replace(",", "").strip())
+
+    df_financial["NumericNet"] = df_financial["Net Profit"].apply(parse_money)
+    df_financial.sort_values(by="NumericNet", ascending=False, inplace=True)
+    df_financial.drop(columns="NumericNet", inplace=True)
+    df_financial.reset_index(drop=True, inplace=True)
     df_financial.index = df_financial.index + 1
     df_financial.insert(0, "Rank", df_financial.index)
     st.dataframe(df_financial, use_container_width=True)
 
+    # 4. Charts & Graphs
     st.markdown("<br><br>", unsafe_allow_html=True)
     st.subheader("Charts & Graphs")
+    # Wins by Track
     win_data = []
     for idx, row in df.iterrows():
         for p in st.session_state.players:
@@ -445,6 +496,7 @@ def statistics_page():
     else:
         st.write("No wins recorded yet for bar chart.")
 
+    # Net Profit Over Time
     df_line = df.copy()
     df_line["Date"] = pd.to_datetime(df_line["Date"], errors='coerce')
     df_line["Date"] = df_line["Date"].dt.date
@@ -543,7 +595,6 @@ def data_entry_page():
             save_data(df)
             st.success("Data updated successfully!")
             st.write("New Entry:", new_entry)
-            # Clear only Step 2; keep Step 1 intact.
             st.session_state['participants_confirmed'] = False
 
 
