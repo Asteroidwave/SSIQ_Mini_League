@@ -313,7 +313,8 @@ def build_contest_history_table(df, page=1, days_per_page=6):
 
 
 def pagination_controls(current_page, total_pages):
-    new_page = st.number_input("Page", min_value=1, max_value=total_pages, value=current_page, step=1, key="page_input")
+    new_page = st.number_input("Page", min_value=1, max_value=total_pages, value=current_page, step=1, key="page_input",
+                               on_change=lambda: st.session_state.update({"history_page": st.session_state.page_input}))
     return new_page
 
 
@@ -344,17 +345,14 @@ def home_page():
     # --- Current Balances Table with Rank ---
     st.subheader("Current Balances")
     balances = compute_balances(df)
-    balance_df = pd.DataFrame([
-        {"Player": p, "Balance": balances[p]}
-        for p in st.session_state.players
-    ])
+    balance_df = pd.DataFrame([{"Player": p, "Balance": balances[p]} for p in st.session_state.players])
     balance_df = balance_df.sort_values("Balance", ascending=False).reset_index(drop=True)
     balance_df.index = balance_df.index + 1
     balance_df.insert(0, "Rank", balance_df.index)
     balance_df["Balance"] = balance_df["Balance"].apply(format_money)
     st.dataframe(balance_df, use_container_width=True)
 
-    # --- Contest History (Vertical, 6 days per page in 2 columns x 3 rows) ---
+    # --- Contest History ---
     st.subheader("Contest History")
     df_all = load_data()
     if df_all.empty:
@@ -374,9 +372,9 @@ def home_page():
     table_html, total_pages = build_contest_history_table(df_all, page=current_page, days_per_page=days_per_page)
     st.markdown(table_html, unsafe_allow_html=True)
 
-    new_page = pagination_controls(current_page, total_pages)
-    if new_page != current_page:
-        st.session_state.history_page = new_page
+    # Pagination controls (simple, at bottom)
+    new_page = st.number_input("Page", min_value=1, max_value=total_pages, value=current_page, step=1, key="page_input",
+                               on_change=lambda: st.session_state.update({"history_page": st.session_state.page_input}))
     st.write(f"Total Pages: {total_pages}")
 
 
