@@ -334,6 +334,7 @@ if "current_page" not in st.session_state:
 def home_page():
     st.title("Welcome to the Mini League")
     st.markdown('<h3 class="home-header">Let the Racing Begin!</h3>', unsafe_allow_html=True)
+
     current_date = datetime.date.today().strftime("%Y-%m-%d")
     st.markdown(f"<div style='text-align: right; font-size: 18px;'><b>Date:</b> {current_date}</div>",
                 unsafe_allow_html=True)
@@ -343,14 +344,17 @@ def home_page():
     # --- Current Balances Table with Rank ---
     st.subheader("Current Balances")
     balances = compute_balances(df)
-    balance_df = pd.DataFrame([{"Player": p, "Balance": balances[p]} for p in st.session_state.players])
+    balance_df = pd.DataFrame([
+        {"Player": p, "Balance": balances[p]}
+        for p in st.session_state.players
+    ])
     balance_df = balance_df.sort_values("Balance", ascending=False).reset_index(drop=True)
     balance_df.index = balance_df.index + 1
     balance_df.insert(0, "Rank", balance_df.index)
     balance_df["Balance"] = balance_df["Balance"].apply(format_money)
     st.dataframe(balance_df, use_container_width=True)
 
-    # --- Contest History ---
+    # --- Contest History (Vertical, 6 days per page in 2 columns x 3 rows) ---
     st.subheader("Contest History")
     df_all = load_data()
     if df_all.empty:
@@ -370,9 +374,9 @@ def home_page():
     table_html, total_pages = build_contest_history_table(df_all, page=current_page, days_per_page=days_per_page)
     st.markdown(table_html, unsafe_allow_html=True)
 
-    # Pagination controls at the bottom (centered, narrow)
     new_page = pagination_controls(current_page, total_pages)
-    st.session_state.history_page = new_page
+    if new_page != current_page:
+        st.session_state.history_page = new_page
     st.write(f"Total Pages: {total_pages}")
 
 
