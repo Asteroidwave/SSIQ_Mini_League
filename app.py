@@ -75,30 +75,39 @@ div.stButton > button:hover {
     color: #2C3E50;
 }
 
-/* Contest History single table container */
+/* Contest History container (no shadow) */
 .history-table-container {
-    max-width: 25%;
+    max-width: 80%;
     margin: 0 auto;
     border-radius: 8px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.15);
     border: 1px solid #ccc;
     padding: 1rem;
     background-color: #fff;
 }
 
-/* Single table with days as sub-sections */
-.history-table {
+/* The main table holding 3 days horizontally */
+.history-main-table {
     width: 100%;
-    border-collapse: collapse;
+    border-collapse: separate;
+    border-spacing: 20px; /* small gap between sub-tables */
+    table-layout: fixed;
 }
-.history-table td, .history-table th {
+
+/* Each day sub-table */
+.history-subtable {
+    border-collapse: collapse;
+    width: auto;
+    background-color: #fff;
+    color: #333;
+}
+.history-subtable th, .history-subtable td {
     border: 1px solid #ccc;
     padding: 8px;
     text-align: center;
     font-size: 15px;
     white-space: nowrap;
 }
-.history-table th {
+.history-subtable th {
     background-color: #f7f7f7;
 }
 .history-date-header {
@@ -110,6 +119,13 @@ div.stButton > button:hover {
 .subtotal-row {
     background-color: #ffe8a6;
     font-weight: 600;
+}
+
+/* Narrow pagination container */
+.pagination-container {
+    width: 200px;
+    margin: 0 auto;
+    margin-top: 1rem;
 }
 
 /* Dark mode overrides */
@@ -131,11 +147,11 @@ div.stButton > button:hover {
         background-color: #333;
         border: 1px solid #555;
     }
-    .history-table {
+    .history-subtable {
         background-color: #444;
         color: #ddd;
     }
-    .history-table th {
+    .history-subtable th {
         background-color: #555;
     }
     .history-date-header {
@@ -236,14 +252,54 @@ def format_money(val):
     return f"$ {val:,.2f}"
 
 
-def format_date_long(d):
-    return d.strftime("%b %-d")
-
-
-def build_history_table_html(df, page=1, days_per_page=5):
+def build_day_subtable_html(date_val, day_data):
     """
-    Build a single HTML table that includes all days in df, but only
-    the subset for the current page. Each day is a 'section' within the table.
+    Build the sub-table HTML for a single day (date header, tracks, sub-total).
+    """
+    # Sort day_data by track
+    day_data.sort_values(by="Track", inplace=True)
+    players = st.session_state.players
+    day_subtotals = {p: 0 for p in players}
+
+    # Start sub-table
+    html = '<table class="history-subtable">'
+    # Date header
+    date_str = date_val.strftime("%b %d")
+    html += f'<tr><th colspan="{1 + len(players)}" class="history-date-header">{date_str}</th></tr>'
+    # Column headers
+    html += "<tr><th>Track</th>"
+    for p in players:
+        html += f"<th>{p}</th>"
+    html += "</tr>"
+
+    # Rows
+    for idx, row in day_data.iterrows():
+        track = row["Track"]
+        html += f"<tr><td>{track}</td>"
+        for p in players:
+            val = row[p]
+            day_subtotals[p] += val
+            if val == 0:
+                # didn't participate
+                html += "<td>N</td>"
+            else:
+                html += f"<td>{format_money(val)}</td>"
+        html += "</tr>"
+
+    # Subtotal row
+    html += f'<tr class="subtotal-row"><td>Sub-Total</td>'
+    for p in players:
+        html += f"<td>{format_money(day_subtotals[p])}</td>"
+    html += "</tr>"
+
+    html += "</table>"
+    return html
+
+
+def build_history_table_html(df, page=1, days_per_page=3):
+    """
+    Build a single table row that holds 3 days horizontally.
+    Each day is a sub-table in a cell.
     """
     df["DateOnly"] = df["Date"].dt.date
     unique_dates = sorted(df["DateOnly"].unique(), reverse=True)
@@ -253,51 +309,18 @@ def build_history_table_html(df, page=1, days_per_page=5):
     end_idx = start_idx + days_per_page
     dates_to_show = unique_dates[start_idx:end_idx]
 
-    # Build one big table
+    # Build one main table row with each day as a sub-table cell
     html = '<div class="history-table-container">'
-    html += '<table class="history-table">'
+    html += '<table class="history-main-table">'
+    html += "<tr>"
 
     for date_val in dates_to_show:
         day_data = df[df["DateOnly"] == date_val].copy()
+        day_html = build_day_subtable_html(date_val, day_data)
+        # Each day is a cell in the main table
+        html += f"<td style='vertical-align: top;'>{day_html}</td>"
 
-        # Build the day header row
-        html += f'<tr><th colspan="{2 + len(st.session_state.players)}" class="history-date-header">{date_val.strftime("%b %d")}</th></tr>'
-
-        # Build the column header row
-        html += "<tr><th>Track</th>"
-        for p in st.session_state.players:
-            html += f"<th>{p}</th>"
-        html += "</tr>"
-
-        # Fill table rows
-        # If a participant has 0, that means they didn't play => display "N"
-        # Otherwise format as money
-        day_data.sort_values(by="Track", inplace=True)
-        day_subtotals = {p: 0 for p in st.session_state.players}
-
-        for idx, row in day_data.iterrows():
-            track = row["Track"]
-            html += f"<tr><td>{track}</td>"
-            for p in st.session_state.players:
-                val = row[p]
-                day_subtotals[p] += val
-                if val == 0:
-                    # Means they didn't participate => "N"
-                    # but if val is actually 0 from a 2-person scenario, it's ambiguous
-                    # We'll assume 2-person scenario => -40 or +40 => never 0
-                    # So 0 means no entry
-                    html += "<td>N</td>"
-                else:
-                    html += f"<td>{format_money(val)}</td>"
-            html += "</tr>"
-
-        # Sub-total row
-        html += f'<tr class="subtotal-row"><td>Sub-Total</td>'
-        for p in st.session_state.players:
-            html += f"<td>{format_money(day_subtotals[p])}</td>"
-        html += "</tr>"
-
-    html += "</table></div>"
+    html += "</tr></table></div>"
     return html, total_pages
 
 
@@ -325,7 +348,7 @@ def home_page():
 
     df = load_data()
 
-    # --- Current Balances Table with Rank (Remove blank column) ---
+    # --- Current Balances Table with Rank ---
     st.subheader("Current Balances")
     balances = compute_balances(df)
     balance_df = pd.DataFrame([
@@ -334,29 +357,35 @@ def home_page():
     ])
     # Sort descending by Balance
     balance_df = balance_df.sort_values("Balance", ascending=False).reset_index(drop=True)
-    # Insert rank column (1-based)
     balance_df.index = balance_df.index + 1
     balance_df.insert(0, "Rank", balance_df.index)
-    # Format currency
     balance_df["Balance"] = balance_df["Balance"].apply(format_money)
     st.dataframe(balance_df, use_container_width=True)
 
-    st.subheader("Contest History (Paginated)")
+    # --- Contest History in horizontal layout (3 days per page) ---
+    st.subheader("Contest History")
     df_all = load_data()
     if df_all.empty:
         st.write("No contest history available.")
         return
-    # Pagination
+
+    # Pagination controls at the bottom, but let's get the total pages first
     if "history_page" not in st.session_state:
         st.session_state.history_page = 1
-    page = st.number_input("Page", min_value=1, value=st.session_state.history_page, step=1)
-
-    table_html, total_pages = build_history_table_html(df_all, page=page, days_per_page=5)
+    # We'll build the table now, then show pagination after
+    page = st.session_state.history_page
+    table_html, total_pages = build_history_table_html(df_all, page=page, days_per_page=3)
     st.markdown(table_html, unsafe_allow_html=True)
 
-    # If user changes the page number, store it
-    if page != st.session_state.history_page:
-        st.session_state.history_page = page
+    # Pagination at the bottom
+    with st.container():
+        st.markdown("<div class='pagination-container'>", unsafe_allow_html=True)
+        new_page = st.number_input("Page", min_value=1, value=page, max_value=total_pages, step=1)
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    if new_page != page:
+        st.session_state.history_page = new_page
+        st.experimental_rerun()
 
     st.write(f"Total Pages: {total_pages}")
 
@@ -368,15 +397,12 @@ def statistics_page():
         st.write("No contest data available to display statistics.")
         return
 
-    # 1. Detailed Win/Loss by Track (ranked by highest win %)
+    # Detailed Win/Loss by Track (Ranked by Win %)
     st.subheader("Detailed Win/Loss by Track (Ranked by Win %)")
     track_groups = df.groupby("Track")
     all_tracks = sorted(track_groups.groups.keys())
-
-    # We'll store totalWins, totalLoss, totalContests, winPct for each player
     data_rows = []
     for p in st.session_state.players:
-        # Sum up total wins and losses across all tracks
         total_wins = 0
         total_losses = 0
         for track in all_tracks:
@@ -390,15 +416,15 @@ def statistics_page():
         win_pct = (total_wins / total_contests * 100) if total_contests > 0 else 0
         data_rows.append({"Player": p, "Wins": total_wins, "Losses": total_losses, "Win %": f"{win_pct:.0f}%"})
     df_winloss = pd.DataFrame(data_rows)
-    # Sort by highest Win % (need numeric sort)
     df_winloss["NumericWinPct"] = df_winloss["Win %"].str.replace("%", "").astype(float)
-    df_winloss = df_winloss.sort_values(by="NumericWinPct", ascending=False).reset_index(drop=True)
+    df_winloss.sort_values(by="NumericWinPct", ascending=False, inplace=True)
+    df_winloss.drop(columns="NumericWinPct", inplace=True)
+    df_winloss.reset_index(drop=True, inplace=True)
     df_winloss.index = df_winloss.index + 1
     df_winloss.insert(0, "Rank", df_winloss.index)
-    df_winloss.drop(columns="NumericWinPct", inplace=True)
     st.dataframe(df_winloss, use_container_width=True)
 
-    # 2. Contest Participation & Win Ratio (ranked by highest ratio)
+    # Contest Participation & Win Ratio (Ranked by Win Ratio)
     st.subheader("Contest Participation & Win Ratio (Ranked by Win Ratio)")
     data_rows2 = []
     for p in st.session_state.players:
@@ -416,13 +442,14 @@ def statistics_page():
         })
     df_participation = pd.DataFrame(data_rows2)
     df_participation["NumericWinRatio"] = df_participation["Win Ratio"].str.replace("%", "").astype(float)
-    df_participation = df_participation.sort_values(by="NumericWinRatio", ascending=False).reset_index(drop=True)
+    df_participation.sort_values(by="NumericWinRatio", ascending=False, inplace=True)
+    df_participation.drop(columns="NumericWinRatio", inplace=True)
+    df_participation.reset_index(drop=True, inplace=True)
     df_participation.index = df_participation.index + 1
     df_participation.insert(0, "Rank", df_participation.index)
-    df_participation.drop(columns="NumericWinRatio", inplace=True)
     st.dataframe(df_participation, use_container_width=True)
 
-    # 3. Detailed Financial Stats
+    # Detailed Financial Stats (Ranked by Net Profit)
     st.subheader("Detailed Financial Stats (Ranked by Net Profit)")
     df["Date"] = pd.to_datetime(df["Date"], errors='coerce')
     financial_stats = []
@@ -436,8 +463,7 @@ def statistics_page():
         if not daily_sums.empty:
             best_day_value = daily_sums.max()
             best_day = daily_sums.idxmax()
-            best_day_dt = datetime.datetime.combine(best_day, datetime.datetime.min.time())
-            best_day_str = best_day_dt.strftime("%b %-d")
+            best_day_str = datetime.datetime.combine(best_day, datetime.datetime.min.time()).strftime("%b %-d")
         else:
             best_day_value = 0
             best_day_str = "N/A"
@@ -452,16 +478,19 @@ def statistics_page():
         })
     df_financial = pd.DataFrame(financial_stats)
     # Format currency columns
-    for col in ["Total Bet", "Winnings", "Losses", "Net Profit", "Highest Daily Win"]:
-        if col == "Highest Daily Win":  # numeric, but for day usage we keep
-            df_financial[col] = df_financial[col].apply(lambda x: format_money(x) if isinstance(x, (int, float)) else x)
-        else:
-            df_financial[col] = df_financial[col].apply(format_money)
+    for col in ["Total Bet", "Winnings", "Losses", "Net Profit"]:
+        df_financial[col] = df_financial[col].apply(format_money)
 
-    # Sort by Net Profit descending
-    # Need to parse Net Profit from string to float
+    # Convert "Highest Daily Win" to money if numeric
+    def try_money(x):
+        if isinstance(x, (int, float)):
+            return format_money(x)
+        return str(x)
+
+    df_financial["Highest Daily Win"] = df_financial["Highest Daily Win"].apply(try_money)
+
+    # Sort by Net Profit
     def parse_money(s):
-        # s is like '$ 1,234.00'
         return float(s.replace("$", "").replace(",", "").strip())
 
     df_financial["NumericNet"] = df_financial["Net Profit"].apply(parse_money)
@@ -472,7 +501,7 @@ def statistics_page():
     df_financial.insert(0, "Rank", df_financial.index)
     st.dataframe(df_financial, use_container_width=True)
 
-    # 4. Charts & Graphs
+    # Charts & Graphs
     st.markdown("<br><br>", unsafe_allow_html=True)
     st.subheader("Charts & Graphs")
     # Wins by Track
@@ -496,7 +525,6 @@ def statistics_page():
     else:
         st.write("No wins recorded yet for bar chart.")
 
-    # Net Profit Over Time
     df_line = df.copy()
     df_line["Date"] = pd.to_datetime(df_line["Date"], errors='coerce')
     df_line["Date"] = df_line["Date"].dt.date
