@@ -118,7 +118,7 @@ div.stButton > button:hover {
 [data-testid="stSidebar"] h1 {
     font-size: 1.5rem;
     margin-bottom: 1rem;
-    color: #2C3E50;
+    color: #8bd8e2;
 }
 </style>
 """
