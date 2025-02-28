@@ -33,7 +33,7 @@ h1, h2, h3, h4 {
     font-weight: 600;
 }
 
-/* Home page header - Let the Racing Begin! */
+/* Home page header */
 .home-header {
     color: #2C3E50;
 }
@@ -51,7 +51,7 @@ h1, h2, h3, h4 {
 /* Buttons */
 div.stButton > button {
     background-color: #2C3E50 !important;
-    color: #ffffff !important;
+    color: #fff !important;
     border-radius: 8px !important;
     border: none !important;
     padding: 0.8em 1.2em !important;
@@ -85,10 +85,10 @@ div.stButton > button:hover {
     padding: 1rem;
 }
 
-/* Main grid: 2 columns, 3 rows => 6 days per page */
+/* Main grid: 2 columns x 3 rows (6 days per page) */
 .history-grid-table {
     border-collapse: separate;
-    border-spacing: 20px; /* gap between sub-tables */
+    border-spacing: 20px;
     width: 100%;
 }
 
@@ -122,26 +122,9 @@ div.stButton > button:hover {
 
 /* Pagination container */
 .pagination-container {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin-top: 1rem;
-    gap: 0.5rem;
-}
-.page-link {
-    padding: 6px 10px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    cursor: pointer;
-    background-color: #fff;
-}
-.page-link.active {
-    background-color: #2C3E50;
-    color: #fff;
-    border-color: #2C3E50;
-}
-.page-link:hover {
-    background-color: #f2f2f2;
+    text-align: center;
+    width: 200px;
+    margin: 1rem auto 0;
 }
 
 /* Dark mode overrides */
@@ -154,7 +137,7 @@ div.stButton > button:hover {
         color: #ADD8E6;
     }
     [data-testid="stSidebar"] {
-        background-color: #222222;
+        background-color: #222;
     }
     [data-testid="stSidebar"] h1 {
         color: #ADD8E6;
@@ -175,19 +158,6 @@ div.stButton > button:hover {
     }
     .subtotal-row {
         background-color: #666;
-    }
-    .page-link {
-        background-color: #444;
-        border-color: #555;
-        color: #ddd;
-    }
-    .page-link.active {
-        background-color: #2C3E50;
-        border-color: #2C3E50;
-        color: #fff;
-    }
-    .page-link:hover {
-        background-color: #555;
     }
 }
 </style>
@@ -282,9 +252,6 @@ def format_money(val):
 
 
 def build_day_subtable_html(date_val, day_data):
-    """
-    Build the sub-table for a single day.
-    """
     day_data = day_data.sort_values(by="Track")
     players = st.session_state.players
     day_subtotals = {p: 0 for p in players}
@@ -317,10 +284,7 @@ def build_day_subtable_html(date_val, day_data):
 
 
 def build_contest_history_table(df, page=1, days_per_page=6):
-    """
-    Build a single table containing a 2x3 grid (6 days per page).
-    Each cell is a sub-table for one day's contests.
-    """
+    df = df.copy()
     df["DateOnly"] = df["Date"].dt.date
     unique_dates = sorted(df["DateOnly"].unique(), reverse=True)
     total_pages = math.ceil(len(unique_dates) / days_per_page)
@@ -329,13 +293,12 @@ def build_contest_history_table(df, page=1, days_per_page=6):
     end_idx = start_idx + days_per_page
     dates_to_show = unique_dates[start_idx:end_idx]
 
-    # Build the grid: 2 columns × 3 rows
+    # Build a grid with 2 columns x 3 rows
     html = '<div class="history-grid-container">'
     html += '<table class="history-grid-table">'
-
-    for row_idx in range(3):  # 3 rows
+    for row_idx in range(3):
         html += "<tr>"
-        for col_idx in range(2):  # 2 columns
+        for col_idx in range(2):
             day_index = row_idx * 2 + col_idx
             if day_index < len(dates_to_show):
                 date_val = dates_to_show[day_index]
@@ -345,16 +308,12 @@ def build_contest_history_table(df, page=1, days_per_page=6):
             else:
                 html += "<td></td>"
         html += "</tr>"
-
     html += "</table></div>"
     return html, total_pages
 
 
-# ---------------- Simple Pagination (using st.number_input) ----------------
 def pagination_controls(current_page, total_pages):
-    st.markdown("<div style='text-align:center; width:200px; margin: 0 auto;'>", unsafe_allow_html=True)
-    new_page = st.number_input("Page", min_value=1, max_value=total_pages, value=current_page, step=1)
-    st.markdown("</div>", unsafe_allow_html=True)
+    new_page = st.number_input("Page", min_value=1, max_value=total_pages, value=current_page, step=1, key="page_input")
     return new_page
 
 
@@ -375,7 +334,6 @@ if "current_page" not in st.session_state:
 def home_page():
     st.title("Welcome to the Mini League")
     st.markdown('<h3 class="home-header">Let the Racing Begin!</h3>', unsafe_allow_html=True)
-
     current_date = datetime.date.today().strftime("%Y-%m-%d")
     st.markdown(f"<div style='text-align: right; font-size: 18px;'><b>Date:</b> {current_date}</div>",
                 unsafe_allow_html=True)
@@ -385,35 +343,36 @@ def home_page():
     # --- Current Balances Table with Rank ---
     st.subheader("Current Balances")
     balances = compute_balances(df)
-    balance_df = pd.DataFrame([
-        {"Player": p, "Balance": balances[p]}
-        for p in st.session_state.players
-    ])
+    balance_df = pd.DataFrame([{"Player": p, "Balance": balances[p]} for p in st.session_state.players])
     balance_df = balance_df.sort_values("Balance", ascending=False).reset_index(drop=True)
     balance_df.index = balance_df.index + 1
     balance_df.insert(0, "Rank", balance_df.index)
     balance_df["Balance"] = balance_df["Balance"].apply(format_money)
     st.dataframe(balance_df, use_container_width=True)
 
-    # --- Contest History (2 columns x 3 rows = 6 days per page) ---
+    # --- Contest History ---
     st.subheader("Contest History")
     df_all = load_data()
     if df_all.empty:
         st.write("No contest history available.")
         return
+
+    df_all["Date"] = pd.to_datetime(df_all["Date"], errors='coerce')
+    df_all["DateOnly"] = df_all["Date"].dt.date
+    unique_dates = sorted(df_all["DateOnly"].unique(), reverse=True)
+    days_per_page = 6
+    total_pages = math.ceil(len(unique_dates) / days_per_page)
+
     if "history_page" not in st.session_state:
         st.session_state.history_page = 1
     current_page = st.session_state.history_page
 
-    # Build contest history table
-    table_html, total_pages = build_contest_history_table(df_all, page=current_page, days_per_page=6)
+    table_html, total_pages = build_contest_history_table(df_all, page=current_page, days_per_page=days_per_page)
     st.markdown(table_html, unsafe_allow_html=True)
 
-    # Pagination controls at the bottom
+    # Pagination controls at the bottom (centered, narrow)
     new_page = pagination_controls(current_page, total_pages)
-    if new_page != current_page:
-        st.session_state.history_page = new_page
-        st.experimental_rerun()
+    st.session_state.history_page = new_page
     st.write(f"Total Pages: {total_pages}")
 
 
