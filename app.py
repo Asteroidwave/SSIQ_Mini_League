@@ -10,18 +10,6 @@ from oauth2client.service_account import ServiceAccountCredentials
 # Set page config as the very first command.
 st.set_page_config(page_title="Mini League", page_icon=":horse_racing:", layout="wide")
 
-st.markdown(
-    """
-    <style>
-    html, body, [data-testid="stAppViewContainer"] {
-        background: linear-gradient(135deg, #f0f2f6, #ffffff) !important;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
-st.write("If you can see this text with a gradient background, it’s working!")
-
 # ---------------- Global Settings ----------------
 initial_balances = {"Hans": 0, "Rich": 80, "Ralls": -80}
 if 'players' not in st.session_state:
@@ -34,10 +22,11 @@ custom_css = """
 
 body {
     font-family: 'Montserrat', sans-serif;
-    # background: linear-gradient(135deg, #f0f2f6, #ffffff);
+    background: linear-gradient(135deg, #f0f2f6, #ffffff);
     color: #333;
     margin: 0;
     padding: 0;
+    
 }
 
 /* Header styling */
