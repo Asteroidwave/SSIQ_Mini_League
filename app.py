@@ -1,4 +1,5 @@
 import os
+import math
 import streamlit as st
 import pandas as pd
 import datetime
@@ -26,7 +27,6 @@ body {
     color: #333;
     margin: 0;
     padding: 0;
-    
 }
 
 /* Header styling */
@@ -34,7 +34,7 @@ h1, h2, h3, h4 {
     font-weight: 600;
 }
 
-/* Home page header - "Let the Racing Begin!" */
+/* Home page header */
 .home-header {
     color: #2C3E50;  /* Dark blue in light mode */
 }
@@ -79,7 +79,6 @@ h1, h2, h3, h4 {
 }
 
 /* Sidebar customization */
-/* Light mode sidebar: use a light gray background and dark blue text for the title */
 [data-testid="stSidebar"] {
     background-color: #f0f0f0;
     padding: 1rem;
@@ -131,18 +130,15 @@ div.stButton > button:hover {
         background-color: #222222;
         color: #ffffff;
     }
-    /* Sidebar in dark mode: dark background and light blue title */
     [data-testid="stSidebar"] {
         background-color: #222222;
     }
     [data-testid="stSidebar"] h1 {
         color: #ADD8E6;
     }
-    /* Home page header in dark mode: light blue */
     .home-header {
         color: #ADD8E6;
     }
-    /* Enhance text selection visibility in dark mode */
     ::selection {
         background: #555 !important;
         color: #fff !important;
@@ -245,10 +241,8 @@ def compute_balances(df):
 
 
 def format_money(val):
-    if val < 0:
-        return f"$ ({abs(val)})"
-    else:
-        return f"$ {val}"
+    """Return the value formatted as currency."""
+    return f"$ {val:,.2f}"
 
 
 def format_date_long(d):
@@ -305,38 +299,38 @@ def home_page():
                 unsafe_allow_html=True)
 
     df = load_data()
-    balances = compute_balances(df)
+
+    # --- Current Balances Table with Ranking ---
     st.subheader("Current Balances")
-    balance_data = [{"Player": p, "Balance": balances[p]} for p in st.session_state.players]
-    df_balances = pd.DataFrame(balance_data).reset_index(drop=True)
-    st.dataframe(df_balances, use_container_width=True)
+    balances = compute_balances(df)
+    balance_df = pd.DataFrame([{"Player": p, "Balance": balances[p]} for p in st.session_state.players])
+    balance_df = balance_df.sort_values(by="Balance", ascending=False).reset_index(drop=True)
+    balance_df.index = balance_df.index + 1  # Start rank at 1
+    balance_df.insert(0, "Rank", balance_df.index)
+    # Format the Balance column
+    balance_df["Balance"] = balance_df["Balance"].apply(format_money)
+    st.dataframe(balance_df, use_container_width=True)
 
-    st.markdown("<br>", unsafe_allow_html=True)
-    st.subheader("Previous Day’s Contests")
-    prev_date_dt = datetime.date.today() - datetime.timedelta(days=1)
-    if "Date" in df.columns and not df.empty:
-        prev_day_data = df[df["Date"].dt.date == prev_date_dt]
+    # --- Contest History with Paginator ---
+    st.subheader("Contest History")
+    df_all = load_data()
+    if df_all.empty:
+        st.write("No contest history available.")
     else:
-        prev_day_data = pd.DataFrame()
-    if prev_day_data.empty:
-        st.write("No data for the previous day.")
-    else:
-        table_html = build_contest_html_table(prev_date_dt, prev_day_data)
-        st.markdown(table_html, unsafe_allow_html=True)
-
-    st.markdown("<br>", unsafe_allow_html=True)
-    st.subheader("Contests from the Last 7 Days")
-    seven_days_ago = datetime.date.today() - datetime.timedelta(days=7)
-    if "Date" in df.columns and not df.empty:
-        last_week_data = df[df["Date"].dt.date >= seven_days_ago]
-    else:
-        last_week_data = pd.DataFrame()
-    if last_week_data.empty:
-        st.write("No contests in the last 7 days.")
-    else:
-        grouped = last_week_data.groupby(last_week_data["Date"].dt.date)
-        for date_val, group_df in grouped:
-            table_html = build_contest_html_table(date_val, group_df)
+        # Get unique dates (as date objects) sorted in descending order.
+        df_all["DateOnly"] = df_all["Date"].dt.date
+        unique_dates = sorted(df_all["DateOnly"].unique(), reverse=True)
+        days_per_page = 5
+        total_pages = math.ceil(len(unique_dates) / days_per_page)
+        page = st.number_input("Page", min_value=1, max_value=total_pages, value=1, step=1)
+        # Determine which dates to display on this page.
+        start = (page - 1) * days_per_page
+        end = start + days_per_page
+        dates_to_show = unique_dates[start:end]
+        # Build a combined table (one after another) for these dates.
+        for date_val in dates_to_show:
+            day_data = df_all[df_all["DateOnly"] == date_val]
+            table_html = build_contest_html_table(date_val, day_data)
             st.markdown(table_html, unsafe_allow_html=True)
 
 
@@ -418,11 +412,15 @@ def statistics_page():
             "Losses": losses_sum,
             "Net Profit": net,
             "Highest Daily Win": best_day_value,
-            "Highest Win Day": best_day_str,
-            "Best Track": best_track,
-            "Worst Track": worst_track
+            "Highest Win Day": best_day_str
         })
-    df_financial = pd.DataFrame(financial_stats).reset_index(drop=True)
+    df_financial = pd.DataFrame(financial_stats)
+    # Format currency columns
+    for col in ["Total Bet", "Winnings", "Losses", "Net Profit", "Highest Daily Win"]:
+        df_financial[col] = df_financial[col].apply(format_money)
+    df_financial = df_financial.sort_values(by="Net Profit", ascending=False).reset_index(drop=True)
+    df_financial.index = df_financial.index + 1
+    df_financial.insert(0, "Rank", df_financial.index)
     st.dataframe(df_financial, use_container_width=True)
 
     st.markdown("<br><br>", unsafe_allow_html=True)
@@ -545,7 +543,7 @@ def data_entry_page():
             save_data(df)
             st.success("Data updated successfully!")
             st.write("New Entry:", new_entry)
-            # Clear step 2 (winner selection) but keep Step 1 values intact.
+            # Clear only Step 2; keep Step 1 intact.
             st.session_state['participants_confirmed'] = False
 
 
