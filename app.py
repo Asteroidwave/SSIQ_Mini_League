@@ -113,7 +113,7 @@ div.stButton > button:hover {
 
 /* Sidebar customization */
 [data-testid="stSidebar"] {
-    background-color: #f8f9fa;
+    /*background-color: #f8f9fa;*/
     padding: 1rem;
 }
 [data-testid="stSidebar"] h1 {
