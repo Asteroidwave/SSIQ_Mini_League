@@ -10,6 +10,8 @@ from oauth2client.service_account import ServiceAccountCredentials
 # Set page config as the very first command
 st.set_page_config(page_title="Mini League", page_icon=":horse_racing:", layout="wide")
 
+st.write("Secrets:", st.secrets)
+
 # Optional: Debug working directory
 #st.write("Current working directory:", os.getcwd())
 
