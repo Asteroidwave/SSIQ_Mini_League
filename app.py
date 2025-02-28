@@ -1,5 +1,4 @@
 import os
-import math
 import streamlit as st
 import pandas as pd
 import datetime
@@ -76,7 +75,7 @@ div.stButton > button:hover {
 }
 
 /* Contest History container (no shadow) */
-.history-table-container {
+.history-vertical-container {
     max-width: 80%;
     margin: 0 auto;
     border-radius: 8px;
@@ -85,20 +84,13 @@ div.stButton > button:hover {
     background-color: #fff;
 }
 
-/* The main table holding 3 days horizontally */
-.history-main-table {
-    width: 100%;
-    border-collapse: separate;
-    border-spacing: 20px; /* small gap between sub-tables */
-    table-layout: fixed;
-}
-
 /* Each day sub-table */
 .history-subtable {
     border-collapse: collapse;
     width: auto;
     background-color: #fff;
     color: #333;
+    margin-bottom: 20px; /* small gap after each day */
 }
 .history-subtable th, .history-subtable td {
     border: 1px solid #ccc;
@@ -121,13 +113,6 @@ div.stButton > button:hover {
     font-weight: 600;
 }
 
-/* Narrow pagination container */
-.pagination-container {
-    width: 200px;
-    margin: 0 auto;
-    margin-top: 1rem;
-}
-
 /* Dark mode overrides */
 @media (prefers-color-scheme: dark) {
     body {
@@ -143,7 +128,7 @@ div.stButton > button:hover {
     [data-testid="stSidebar"] h1 {
         color: #ADD8E6;
     }
-    .history-table-container {
+    .history-vertical-container {
         background-color: #333;
         border: 1px solid #555;
     }
@@ -254,14 +239,12 @@ def format_money(val):
 
 def build_day_subtable_html(date_val, day_data):
     """
-    Build the sub-table HTML for a single day (date header, tracks, sub-total).
+    Build the sub-table HTML for a single day (vertical format).
     """
-    # Sort day_data by track
-    day_data.sort_values(by="Track", inplace=True)
+    day_data = day_data.sort_values(by="Track")
     players = st.session_state.players
     day_subtotals = {p: 0 for p in players}
 
-    # Start sub-table
     html = '<table class="history-subtable">'
     # Date header
     date_str = date_val.strftime("%b %d")
@@ -280,48 +263,20 @@ def build_day_subtable_html(date_val, day_data):
             val = row[p]
             day_subtotals[p] += val
             if val == 0:
-                # didn't participate
+                # didn't participate => N
                 html += "<td>N</td>"
             else:
                 html += f"<td>{format_money(val)}</td>"
         html += "</tr>"
 
-    # Subtotal row
+    # Sub-total row
     html += f'<tr class="subtotal-row"><td>Sub-Total</td>'
     for p in players:
         html += f"<td>{format_money(day_subtotals[p])}</td>"
     html += "</tr>"
-
     html += "</table>"
+
     return html
-
-
-def build_history_table_html(df, page=1, days_per_page=3):
-    """
-    Build a single table row that holds 3 days horizontally.
-    Each day is a sub-table in a cell.
-    """
-    df["DateOnly"] = df["Date"].dt.date
-    unique_dates = sorted(df["DateOnly"].unique(), reverse=True)
-    total_pages = math.ceil(len(unique_dates) / days_per_page)
-
-    start_idx = (page - 1) * days_per_page
-    end_idx = start_idx + days_per_page
-    dates_to_show = unique_dates[start_idx:end_idx]
-
-    # Build one main table row with each day as a sub-table cell
-    html = '<div class="history-table-container">'
-    html += '<table class="history-main-table">'
-    html += "<tr>"
-
-    for date_val in dates_to_show:
-        day_data = df[df["DateOnly"] == date_val].copy()
-        day_html = build_day_subtable_html(date_val, day_data)
-        # Each day is a cell in the main table
-        html += f"<td style='vertical-align: top;'>{day_html}</td>"
-
-    html += "</tr></table></div>"
-    return html, total_pages
 
 
 # ---------------- Navigation (Vertical Sidebar Buttons) ----------------
@@ -362,32 +317,27 @@ def home_page():
     balance_df["Balance"] = balance_df["Balance"].apply(format_money)
     st.dataframe(balance_df, use_container_width=True)
 
-    # --- Contest History in horizontal layout (3 days per page) ---
+    # --- Contest History (Last 4 Days, Vertical) ---
     st.subheader("Contest History")
     df_all = load_data()
     if df_all.empty:
         st.write("No contest history available.")
         return
 
-    # Pagination controls at the bottom, but let's get the total pages first
-    if "history_page" not in st.session_state:
-        st.session_state.history_page = 1
-    # We'll build the table now, then show pagination after
-    page = st.session_state.history_page
-    table_html, total_pages = build_history_table_html(df_all, page=page, days_per_page=3)
-    st.markdown(table_html, unsafe_allow_html=True)
+    # Convert to date only, sort descending
+    df_all["DateOnly"] = df_all["Date"].dt.date
+    unique_dates = sorted(df_all["DateOnly"].unique(), reverse=True)
+    # Show only the last 4
+    dates_to_show = unique_dates[:4]
 
-    # Pagination at the bottom
-    with st.container():
-        st.markdown("<div class='pagination-container'>", unsafe_allow_html=True)
-        new_page = st.number_input("Page", min_value=1, value=page, max_value=total_pages, step=1)
-        st.markdown("</div>", unsafe_allow_html=True)
-
-    if new_page != page:
-        st.session_state.history_page = new_page
-        st.experimental_rerun()
-
-    st.write(f"Total Pages: {total_pages}")
+    # Container to hold the sub-tables
+    history_html = '<div class="history-vertical-container">'
+    for date_val in dates_to_show:
+        day_data = df_all[df_all["DateOnly"] == date_val]
+        day_html = build_day_subtable_html(date_val, day_data)
+        history_html += day_html
+    history_html += "</div>"
+    st.markdown(history_html, unsafe_allow_html=True)
 
 
 def statistics_page():
@@ -477,14 +427,13 @@ def statistics_page():
             "Highest Win Day": best_day_str
         })
     df_financial = pd.DataFrame(financial_stats)
-    # Format currency columns
     for col in ["Total Bet", "Winnings", "Losses", "Net Profit"]:
-        df_financial[col] = df_financial[col].apply(format_money)
+        df_financial[col] = df_financial[col].apply(lambda x: f"$ {x:,.2f}")
 
     # Convert "Highest Daily Win" to money if numeric
     def try_money(x):
         if isinstance(x, (int, float)):
-            return format_money(x)
+            return f"$ {x:,.2f}"
         return str(x)
 
     df_financial["Highest Daily Win"] = df_financial["Highest Daily Win"].apply(try_money)
@@ -501,7 +450,6 @@ def statistics_page():
     df_financial.insert(0, "Rank", df_financial.index)
     st.dataframe(df_financial, use_container_width=True)
 
-    # Charts & Graphs
     st.markdown("<br><br>", unsafe_allow_html=True)
     st.subheader("Charts & Graphs")
     # Wins by Track
