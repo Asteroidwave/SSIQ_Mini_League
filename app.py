@@ -284,7 +284,7 @@ def build_day_subtable_html(date_val, day_data):
             day_subtotals[p] += val
             # If the player won (positive value), highlight the cell in a muted green (#C8E6C9)
             if val > 0:
-                html += f"<td style='background-color: #C8E6C9;'>{format_money(val)}</td>"
+                html += f"<td style='background-color: #C8E6C9; color: #212622;'>{format_money(val)}</td>"
             elif val == 0:
                 html += "<td>N</td>"
             else:
