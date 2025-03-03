@@ -285,9 +285,9 @@ def build_day_subtable_html(date_val, day_data):
         for p in players:
             val = row[p]
             day_subtotals[p] += val
+            # If the player won (positive value), highlight the cell in a muted green (#C8E6C9) with black text
             if val > 0:
-                # highlight the winner's cell with a more muted green
-                html += f"<td style='background-color: #C8E6C9;'>{format_money(val)}</td>"
+                html += f"<td style='background-color: #C8E6C9; color: black;'>{format_money(val)}</td>"
             elif val == 0:
                 html += "<td>N</td>"
             else:
@@ -311,7 +311,6 @@ def build_contest_history_table(df, page=1, days_per_page=6):
     end_idx = start_idx + days_per_page
     dates_to_show = unique_dates[start_idx:end_idx]
 
-    # Build a grid with 2 columns x 3 rows
     html = '<div class="history-grid-container">'
     html += '<table class="history-grid-table">'
     for row_idx in range(3):
@@ -334,6 +333,13 @@ def pagination_controls(current_page, total_pages):
     new_page = st.number_input("Page", min_value=1, max_value=total_pages, value=current_page, step=1, key="page_input")
     return new_page
 
+
+# ---------------- Chart Colors ----------------
+PLAYER_COLORS = {
+    "Hans": "#93c7fa",
+    "Rich": "#2b65c2",
+    "Ralls": "#f3afad"
+}
 
 # ---------------- Navigation (Vertical Sidebar Buttons) ----------------
 st.sidebar.title("Navigation")
@@ -510,79 +516,53 @@ def statistics_page():
     st.markdown("<br><br>", unsafe_allow_html=True)
     st.subheader("Charts & Graphs")
 
-    # -- Wins by Track: stacked bars
-    # We'll create sub-traces for each player: "Wins" and "NonWins"
-    # Then we set offsetgroup so each player's bars appear side by side.
-    # The pink portion is "Wins" at the bottom, the top portion is "NonWins" = played - wins.
-    # The entire bar height is total played.
-
-    # Build records for each track and each player
+    # Wins by Track (side-by-side bars). Each bar is the # of wins for that player on that track.
+    # We show one bar per (player, track).
+    # The color is determined by PLAYER_COLORS.
+    # The hover includes Player, track, games played, wins, total bids, money won.
     records = []
     for t in TRACK_OPTIONS:
         for p in st.session_state.players:
             df_subset = df[df["Track"] == t]
             played = (df_subset[p] != 0).sum()
             wins = (df_subset[p] > 0).sum()
-            money_won = df_subset[df_subset[p] > 0][p].sum()
-            # NonWins is played - wins
-            non_wins = played - wins
-            # The total bid for "played" times is played * DEFAULT_BET_AMOUNT
             total_bid = played * DEFAULT_BET_AMOUNT
+            money_won = df_subset[df_subset[p] > 0][p].sum()
             records.append({
                 "Track": t,
                 "Player": p,
                 "Played": played,
                 "Wins": wins,
-                "NonWins": non_wins,
-                "MoneyWon": money_won,
-                "TotalBid": total_bid
+                "TotalBid": total_bid,
+                "MoneyWon": money_won
             })
-    data_stacked = pd.DataFrame(records)
+    bar_df = pd.DataFrame(records)
 
-    fig_stacked = go.Figure()
-    # We do a separate "Wins" trace for each player, and a separate "NonWins" trace for each player,
-    # using offsetgroup to group them side by side, and barmode='stack' to stack within each offsetgroup.
-    for i, p in enumerate(st.session_state.players):
-        df_p = data_stacked[data_stacked["Player"] == p]
-        # NonWins trace on top
-        fig_stacked.add_trace(go.Bar(
+    fig_bars = go.Figure()
+    for p in st.session_state.players:
+        df_p = bar_df[bar_df["Player"] == p]
+        fig_bars.add_trace(go.Bar(
             x=df_p["Track"],
-            y=df_p["NonWins"],
-            name=f"{p} NonWins",
-            offsetgroup=str(i),
-            base=None,
-            marker_color="lightgray",
+            y=df_p["Wins"],  # bar height = number of wins
+            name=p,
+            marker_color=PLAYER_COLORS.get(p, "#888"),
+            customdata=df_p[["Played", "TotalBid", "MoneyWon"]],
             hovertemplate=(
                     "Player: " + p +
                     "<br>Track: %{x}" +
-                    "<br>Total Played: %{customdata[0]}" +
-                    "<br>Total Bid: $%{customdata[1]:,.2f}<extra></extra>"
-            ),
-            customdata=df_p[["Played", "TotalBid"]]
-        ))
-        # Wins trace on bottom (pink)
-        fig_stacked.add_trace(go.Bar(
-            x=df_p["Track"],
-            y=df_p["Wins"],
-            name=f"{p} Wins",
-            offsetgroup=str(i),
-            marker_color="pink",
-            hovertemplate=(
-                    "Player: " + p +
-                    "<br>Track: %{x}" +
-                    "<br>Total Played: %{customdata[0]}" +
+                    "<br>Games Played: %{customdata[0]}" +
                     "<br>Wins: %{y}" +
-                    "<br>Money Won: $%{customdata[1]:,.2f}<extra></extra>"
-            ),
-            customdata=df_p[["Played", "MoneyWon"]]
+                    "<br>Total Bids: $%{customdata[1]:,.2f}" +
+                    "<br>Money Won: $%{customdata[2]:,.2f}<extra></extra>"
+            )
         ))
-    fig_stacked.update_layout(
-        barmode="stack",
-        title="Wins by Track (Stacked: NonWins + Wins)",
+    fig_bars.update_layout(
+        barmode="group",
+        title="Wins by Track (Side-by-Side Bars)",
         xaxis_title="Track",
-        yaxis_title="Games"
+        yaxis_title="Number of Wins"
     )
-    st.plotly_chart(fig_stacked, use_container_width=True)
+    st.plotly_chart(fig_bars, use_container_width=True)
 
     # Net Profit Over Time (Line Chart)
     df_line = df.copy()
