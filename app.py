@@ -47,7 +47,7 @@ h1, h2, h3, h4 {
     padding: 2rem;
 }
 
-/* Center all st.dataframe tables */
+/* Center all dataframes */
 [data-testid="stDataFrameContainer"] table {
     margin-left: auto;
     margin-right: auto;
@@ -282,9 +282,9 @@ def build_day_subtable_html(date_val, day_data):
         for p in players:
             val = row[p]
             day_subtotals[p] += val
-            # Highlight the winner's cell (value > 0) with light green
+            # If the player won (positive value), highlight the cell in a muted green (#C8E6C9)
             if val > 0:
-                html += f"<td style='background-color: lightgreen;'>{format_money(val)}</td>"
+                html += f"<td style='background-color: #C8E6C9;'>{format_money(val)}</td>"
             elif val == 0:
                 html += "<td>N</td>"
             else:
@@ -334,43 +334,57 @@ def pagination_controls(current_page, total_pages):
 
 # ---------------- Wins by Track Chart Helper ----------------
 def build_wins_by_track_chart(df):
-    # Build a record for each track and each player: total races (played), wins, and money won.
+    # Build records for each track and each player using TRACK_OPTIONS order
     records = []
     for t in TRACK_OPTIONS:
         for p in st.session_state.players:
-            # Only consider contests for track t
             df_subset = df[df["Track"] == t]
             played = (df_subset[p] != 0).sum()
             wins = (df_subset[p] > 0).sum()
-            money = df_subset[df_subset[p] > 0][p].sum()
-            records.append({"Track": t, "Player": p, "Played": played, "Wins": wins, "Money": money})
+            # Total bid is assumed to be played * DEFAULT_BET_AMOUNT
+            total_bid = played * DEFAULT_BET_AMOUNT
+            # Money won: sum of positive outcomes
+            money_won = df_subset[df_subset[p] > 0][p].sum()
+            records.append({
+                "Track": t,
+                "Player": p,
+                "Played": played,
+                "Wins": wins,
+                "TotalBid": total_bid,
+                "MoneyWon": money_won
+            })
     records_df = pd.DataFrame(records)
 
     fig = go.Figure()
-    # For each player, add two traces: one for total races (Played) as a background bar, and one for Wins on top.
+    # For each player, add two traces per track:
     for p in st.session_state.players:
         df_player = records_df[records_df["Player"] == p]
-        # Background bar for total races with transparency
+        # Background bar: total races played (TotalBid shown in hover) with transparency
         fig.add_trace(go.Bar(
             x=df_player["Track"],
             y=df_player["Played"],
             name=f"{p} Total Races",
-            marker_color="lightgray",
-            opacity=0.4,
-            hoverinfo="skip"
+            marker_color="rgba(169,169,169,0.4)",
+            opacity=0.6,
+            hovertemplate=("Player: " + p +
+                           "<br>Track: %{x}" +
+                           "<br>Played: %{y}" +
+                           "<br>Total Bid: $%{customdata[0]:,.2f}<extra></extra>"),
+            customdata=df_player[["TotalBid"]]
         ))
-        # Foreground bar for wins
+        # Foreground bar: wins with a slightly transparent green
         fig.add_trace(go.Bar(
             x=df_player["Track"],
             y=df_player["Wins"],
             name=f"{p} Wins",
-            marker_color="green",
-            customdata=df_player[["Played", "Money"]],
+            marker_color="rgba(76,175,80,0.6)",
+            opacity=0.6,
             hovertemplate=("Player: " + p +
                            "<br>Track: %{x}" +
                            "<br>Played: %{customdata[0]}" +
                            "<br>Wins: %{y}" +
-                           "<br>Money Won: %{customdata[1]:$.2f}<extra></extra>")
+                           "<br>Money Won: $%{customdata[1]:,.2f}<extra></extra>"),
+            customdata=df_player[["Played", "MoneyWon"]]
         ))
     fig.update_layout(barmode="overlay",
                       title="Wins by Track (Total Races & Wins)",
@@ -399,6 +413,7 @@ def home_page():
     current_date = datetime.date.today().strftime("%Y-%m-%d")
     st.markdown(f"<div style='text-align: right; font-size: 18px;'><b>Date:</b> {current_date}</div>",
                 unsafe_allow_html=True)
+
     df = load_data()
 
     # --- Current Balances Table with Rank ---
@@ -474,7 +489,7 @@ def statistics_page():
     financial_stats = []
     for p in st.session_state.players:
         df_player = df[df[p] != 0]
-        total_bet = len(df_player) * 40
+        total_bet = len(df_player) * DEFAULT_BET_AMOUNT
         winnings = df_player[df_player[p] > 0][p].sum()
         losses_sum = abs(df_player[df_player[p] < 0][p].sum())
         net = df[p].sum()
@@ -524,7 +539,6 @@ def statistics_page():
     df["Date"] = pd.to_datetime(df["Date"], errors='coerce')
     track_groups = df.groupby("Track")
     all_tracks = sorted(track_groups.groups.keys())
-
     cols = st.columns(len(st.session_state.players))
     for i, p in enumerate(st.session_state.players):
         with cols[i]:
@@ -553,45 +567,60 @@ def statistics_page():
     # 4. Charts & Graphs
     st.markdown("<br><br>", unsafe_allow_html=True)
     st.subheader("Charts & Graphs")
-    # Wins by Track (Overlay Bar Chart)
-    # Build records for each track and player
+    # Wins by Track: For each track, for each player, display a background bar (total races) and an inner bar (wins)
+    # Build records for each track and each player
     records = []
     for t in TRACK_OPTIONS:
         for p in st.session_state.players:
             df_subset = df[df["Track"] == t]
             played = (df_subset[p] != 0).sum()
             wins = (df_subset[p] > 0).sum()
-            money = df_subset[df_subset[p] > 0][p].sum()
-            records.append({"Track": t, "Player": p, "Played": played, "Wins": wins, "Money": money})
+            total_bid = played * DEFAULT_BET_AMOUNT
+            money_won = df_subset[df_subset[p] > 0][p].sum()
+            records.append({
+                "Track": t,
+                "Player": p,
+                "Played": played,
+                "Wins": wins,
+                "TotalBid": total_bid,
+                "MoneyWon": money_won
+            })
     records_df = pd.DataFrame(records)
 
     fig = go.Figure()
     for p in st.session_state.players:
         df_player = records_df[records_df["Player"] == p]
-        # Background bar: total races (Played) in light gray (transparent)
+        # Background bar: total races (Played) in semi-transparent gray
         fig.add_trace(go.Bar(
             x=df_player["Track"],
             y=df_player["Played"],
             name=f"{p} Total Races",
-            marker_color="lightgray",
-            opacity=0.4,
-            hoverinfo="skip"
+            marker_color="rgba(169,169,169,0.4)",
+            opacity=0.7,
+            hovertemplate=("Player: " + p +
+                           "<br>Track: %{x}" +
+                           "<br>Played: %{y}" +
+                           "<br>Total Bid: $%{customdata[0]:,.2f}<extra></extra>"),
+            customdata=df_player[["TotalBid"]]
         ))
-        # Foreground bar: wins in bold green
+        # Foreground bar: wins in semi-transparent green (smaller bar overlay)
         fig.add_trace(go.Bar(
             x=df_player["Track"],
             y=df_player["Wins"],
             name=f"{p} Wins",
-            marker_color="green",
-            customdata=df_player[["Played", "Money"]],
+            marker_color="rgba(76,175,80,0.6)",
+            opacity=0.6,
             hovertemplate=("Player: " + p +
                            "<br>Track: %{x}" +
                            "<br>Played: %{customdata[0]}" +
                            "<br>Wins: %{y}" +
-                           "<br>Money Won: %{customdata[1]:$.2f}<extra></extra>")
+                           "<br>Money Won: $%{customdata[1]:,.2f}<extra></extra>"),
+            customdata=df_player[["Played", "MoneyWon"]]
         ))
-    fig.update_layout(barmode="overlay", title="Wins by Track (Total Races & Wins)",
-                      xaxis_title="Track", yaxis_title="Count")
+    fig.update_layout(barmode="overlay",
+                      title="Wins by Track (Total Races & Wins)",
+                      xaxis_title="Track",
+                      yaxis_title="Count")
     st.plotly_chart(fig, use_container_width=True)
 
     # Net Profit Over Time (Line Chart)
@@ -602,7 +631,13 @@ def statistics_page():
     if not daily_player_sums.empty:
         daily_player_sums = daily_player_sums.reset_index()
         melted = daily_player_sums.melt(id_vars="Date", var_name="Player", value_name="Net")
-        fig_line = px.line(melted, x="Date", y="Net", color="Player", title="Net Profit Over Time (Line Chart)")
+        fig_line = px.line(
+            melted,
+            x="Date",
+            y="Net",
+            color="Player",
+            title="Net Profit Over Time (Line Chart)"
+        )
         fig_line.update_xaxes(tickformat="%b %d")
         st.plotly_chart(fig_line, use_container_width=True)
     else:
