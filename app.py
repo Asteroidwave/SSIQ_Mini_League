@@ -9,13 +9,13 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
 # Global configuration for tracks and default bet amount
-TRACK_OPTIONS = ["PARX", "TP", "DD", "GP", "PENN", "AQU", "SA", "LRL", "OP", "CT"]
+TRACK_OPTIONS = ["PARX", "TP", "DD", "GP", "PENN", "AQU", "SA", "LRL", "OP", "CT", "MHV"]
 DEFAULT_BET_AMOUNT = 40
 
 st.set_page_config(page_title="Mini League", page_icon=":horse_racing:", layout="wide")
 
 # ---------------- Global Settings ----------------
-initial_balances = {"Hans": 0, "Rich": 80, "Ralls": -80}
+initial_balances = {"Hans": 0, "Rich": 80, "Ralls": -80, "JK":0}
 if 'players' not in st.session_state:
     st.session_state.players = list(initial_balances.keys())
 
@@ -231,7 +231,7 @@ def save_data(df):
 
 
 # ---------------- Data Handling Functions ----------------
-initial_balances = {"Hans": 0, "Rich": 80, "Ralls": -80}
+initial_balances = {"Hans": 0, "Rich": 80, "Ralls": -80, "JK":0}
 
 
 def get_initial_balance(player):
@@ -338,7 +338,8 @@ def pagination_controls(current_page, total_pages):
 PLAYER_COLORS = {
     "Hans": "#93c7fa",
     "Rich": "#2b65c2",
-    "Ralls": "#f3afad"
+    "Ralls": "#f3afad",
+    "JK": "#a3e8a1"
 }
 
 # ---------------- Navigation (Vertical Sidebar Buttons) ----------------
