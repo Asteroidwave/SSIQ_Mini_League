@@ -15,7 +15,7 @@ DEFAULT_BET_AMOUNT = 40
 st.set_page_config(page_title="Mini League", page_icon=":horse_racing:", layout="wide")
 
 # ---------------- Global Settings ----------------
-initial_balances = {"Hans": 0, "Rich": 80, "Ralls": -80, "JK":0}
+initial_balances = {"Hans": 0, "Rich": 80, "Ralls": -80}
 if 'players' not in st.session_state:
     st.session_state.players = list(initial_balances.keys())
 
@@ -231,7 +231,7 @@ def save_data(df):
 
 
 # ---------------- Data Handling Functions ----------------
-initial_balances = {"Hans": 0, "Rich": 80, "Ralls": -80, "JK":0}
+initial_balances = {"Hans": 0, "Rich": 80, "Ralls": -80}
 
 
 def get_initial_balance(player):
@@ -339,7 +339,7 @@ PLAYER_COLORS = {
     "Hans": "#93c7fa",
     "Rich": "#2b65c2",
     "Ralls": "#f3afad",
-    "JK": "#a3e8a1"
+    # "JK": "#a3e8a1"
 }
 
 # ---------------- Navigation (Vertical Sidebar Buttons) ----------------
